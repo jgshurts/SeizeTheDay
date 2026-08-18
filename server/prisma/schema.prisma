@@ -62,6 +62,7 @@ model Task {
   assigneeId      BigInt    @map("assignee_id")
   priorityGroupId BigInt?   @map("priority_group_id")
   statusId        BigInt?   @map("status_id")
+  noteId          BigInt?   @map("note_id")
   prtyOrdinal     Int?      @map("prty_ordinal")
   description     String
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -73,6 +74,7 @@ model Task {
   assignee      User           @relation("TaskAssignee", fields: [assigneeId], references: [id])
   priorityGroup PriorityGroup? @relation(fields: [priorityGroupId], references: [id])
   status        Status?        @relation(fields: [statusId], references: [id])
+  note          Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
 
   @@map("tasks")
 }
@@ -86,6 +88,7 @@ model Note {
   contextDate DateTime @map("context_date") @db.Date
 
   project Project? @relation(fields: [projectId], references: [id])
+  tasks   Task[]
 
   @@map("notes")
 }

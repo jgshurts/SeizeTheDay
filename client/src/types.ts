@@ -34,6 +34,7 @@ export interface Task {
   assigneeId: string;
   priorityGroupId: string | null;
   statusId: string | null;
+  noteId: string | null;
   prtyOrdinal: number | null;
   description: string;
   createdAt: string;
@@ -41,6 +42,7 @@ export interface Task {
   completedAt: string | null;
   status: Status | null;
   priorityGroup: PriorityGroup | null;
+  note: { id: string; noteText: string | null } | null;
 }
 
 export interface Note {

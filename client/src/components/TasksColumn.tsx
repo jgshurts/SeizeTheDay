@@ -1,43 +1,41 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import { api } from "../lib/api";
+import Markdown from "react-markdown";
+import { Plus, StickyNote, Trash2 } from "lucide-react";
+import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import type { PriorityGroup, Status, Task } from "../types";
 
 interface TasksColumnProps {
-  activeDate: string;
+  tasks: Task[];
+  statuses: Status[];
+  priorityGroups: PriorityGroup[];
+  showCompleted: boolean;
+  onShowCompletedChange: (value: boolean) => void;
+  onAddTask: (description: string) => Promise<Task>;
+  onUpdateTask: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  onDeleteTask: (id: string) => Promise<void>;
 }
 
 const NONE = "";
 
-export function TasksColumn({ activeDate }: TasksColumnProps) {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [priorityGroups, setPriorityGroups] = useState<PriorityGroup[]>([]);
-  const [showCompleted, setShowCompleted] = useState(true);
+export function TasksColumn({
+  tasks,
+  statuses,
+  priorityGroups,
+  showCompleted,
+  onShowCompletedChange,
+  onAddTask,
+  onUpdateTask,
+  onDeleteTask,
+}: TasksColumnProps) {
   const [newDescription, setNewDescription] = useState("");
   const [adding, setAdding] = useState(false);
   const [newPriorityGroupId, setNewPriorityGroupId] = useState<string | null>(null);
   const [newPrtyOrdinal, setNewPrtyOrdinal] = useState<number | null>(null);
 
-  useEffect(() => {
-    api.get<Status[]>("/statuses").then(setStatuses);
-    api.get<PriorityGroup[]>("/priority-groups").then(setPriorityGroups);
-  }, []);
-
-  useEffect(() => {
-    api
-      .get<Task[]>(`/tasks?date=${activeDate}&includeCompleted=${showCompleted}`)
-      .then(setTasks);
-  }, [activeDate, showCompleted]);
-
   function startAdding() {
-    const groupA = priorityGroups.find((pg) => pg.prtyCode === "A");
-    const maxOrdinalInA = tasks
-      .filter((t) => t.priorityGroup?.prtyCode === "A" && t.prtyOrdinal !== null)
-      .reduce((max, t) => Math.max(max, t.prtyOrdinal as number), 0);
-
-    setNewPriorityGroupId(groupA?.id ?? null);
-    setNewPrtyOrdinal(groupA ? maxOrdinalInA + 1 : null);
+    const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
+    setNewPriorityGroupId(priorityGroupId);
+    setNewPrtyOrdinal(prtyOrdinal);
     setAdding(true);
   }
 
@@ -56,30 +54,14 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [tasks, priorityGroups]);
 
-  async function addTask() {
+  async function submitNewTask() {
     if (!newDescription.trim()) {
       setAdding(false);
       return;
     }
-    const task = await api.post<Task>("/tasks", {
-      description: newDescription.trim(),
-      datePlanned: activeDate,
-      priorityGroupId: newPriorityGroupId,
-      prtyOrdinal: newPrtyOrdinal,
-    });
-    setTasks((prev) => [...prev, task]);
+    await onAddTask(newDescription.trim());
     setNewDescription("");
     setAdding(false);
-  }
-
-  async function updateTask(id: string, patch: Record<string, unknown>) {
-    const updated = await api.patch<Task>(`/tasks/${id}`, patch);
-    setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
-  }
-
-  async function deleteTask(id: string) {
-    await api.delete(`/tasks/${id}`);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
   return (
@@ -90,7 +72,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
           <input
             type="checkbox"
             checked={showCompleted}
-            onChange={(e) => setShowCompleted(e.target.checked)}
+            onChange={(e) => onShowCompletedChange(e.target.checked)}
           />
           Show completed
         </label>
@@ -112,6 +94,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
               <th className="w-12 px-2 py-1 text-center">PG</th>
               <th className="w-12 px-2 py-1 text-center">PR</th>
               <th className="px-2 py-1">Description</th>
+              <th className="w-10 px-2 py-1 text-center">Note</th>
               <th className="w-8 px-2 py-1" />
             </tr>
           </thead>
@@ -130,12 +113,13 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                     autoFocus
                     value={newDescription}
                     onChange={(e) => setNewDescription(e.target.value)}
-                    onBlur={addTask}
-                    onKeyDown={(e) => e.key === "Enter" && addTask()}
+                    onBlur={submitNewTask}
+                    onKeyDown={(e) => e.key === "Enter" && submitNewTask()}
                     className="w-full rounded border border-slate-300 px-1 py-0.5"
                     placeholder="Task description"
                   />
                 </td>
+                <td />
                 <td />
               </tr>
             )}
@@ -144,7 +128,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                 <td className="px-2 py-1">
                   <select
                     value={task.statusId ?? NONE}
-                    onChange={(e) => updateTask(task.id, { statusId: e.target.value || null })}
+                    onChange={(e) => onUpdateTask(task.id, { statusId: e.target.value || null })}
                     title={task.status?.description ?? undefined}
                     style={{
                       backgroundColor: task.status?.backgroundColor ?? undefined,
@@ -165,7 +149,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                   <select
                     value={task.priorityGroupId ?? NONE}
                     onChange={(e) =>
-                      updateTask(task.id, { priorityGroupId: e.target.value || null })
+                      onUpdateTask(task.id, { priorityGroupId: e.target.value || null })
                     }
                     style={{ textAlignLast: "center" }}
                     className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
@@ -183,7 +167,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                     type="number"
                     defaultValue={task.prtyOrdinal ?? undefined}
                     onBlur={(e) =>
-                      updateTask(task.id, {
+                      onUpdateTask(task.id, {
                         prtyOrdinal: e.target.value === "" ? null : Number(e.target.value),
                       })
                     }
@@ -193,15 +177,34 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                 <td className="px-2 py-1">
                   <input
                     defaultValue={task.description}
-                    onBlur={(e) => updateTask(task.id, { description: e.target.value })}
+                    onBlur={(e) => onUpdateTask(task.id, { description: e.target.value })}
                     className="w-full rounded border border-transparent px-1 hover:border-slate-200 focus:border-slate-300"
                   />
+                </td>
+                <td className="px-2 py-1 text-center">
+                  {task.note && (
+                    <span className="group relative inline-flex text-amber-500">
+                      <StickyNote size={14} />
+                      <div
+                        role="tooltip"
+                        className="pointer-events-none invisible absolute right-0 top-full z-20 mt-1 w-64 rounded bg-slate-800 px-2 py-1.5 text-left normal-case text-slate-100 opacity-0 shadow-lg transition-opacity duration-100 group-hover:visible group-hover:opacity-100"
+                      >
+                        {task.note.noteText ? (
+                          <div className="prose prose-invert prose-sm max-w-none [&>*]:my-0.5">
+                            <Markdown>{task.note.noteText}</Markdown>
+                          </div>
+                        ) : (
+                          <span className="text-xs italic text-slate-400">No note text</span>
+                        )}
+                      </div>
+                    </span>
+                  )}
                 </td>
                 <td className="px-2 py-1 text-right">
                   <button
                     type="button"
                     aria-label="Delete task"
-                    onClick={() => deleteTask(task.id)}
+                    onClick={() => onDeleteTask(task.id)}
                     className="text-slate-400 hover:text-red-600"
                   >
                     <Trash2 size={16} />

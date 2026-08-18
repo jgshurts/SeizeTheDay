@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
-import { Plus, Trash2 } from "lucide-react";
+import { ListPlus, Plus, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
-import type { Note, Project } from "../types";
+import type { Note, Project, Task } from "../types";
 
 const NONE = "";
 
 interface NotesColumnProps {
   activeDate: string;
+  onAddRelatedTask: (description: string, opts?: { noteId?: string }) => Promise<Task>;
 }
 
-export function NotesColumn({ activeDate }: NotesColumnProps) {
+export function NotesColumn({ activeDate, onAddRelatedTask }: NotesColumnProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [addingTaskForNoteId, setAddingTaskForNoteId] = useState<string | null>(null);
+  const [newTaskDescription, setNewTaskDescription] = useState("");
 
   useEffect(() => {
     api.get<Project[]>("/projects").then(setProjects);
@@ -50,6 +53,16 @@ export function NotesColumn({ activeDate }: NotesColumnProps) {
   async function deleteNote(id: string) {
     await api.delete(`/notes/${id}`);
     setNotes((prev) => prev.filter((n) => n.id !== id));
+  }
+
+  async function submitRelatedTask(noteId: string) {
+    if (!newTaskDescription.trim()) {
+      setAddingTaskForNoteId(null);
+      return;
+    }
+    await onAddRelatedTask(newTaskDescription.trim(), { noteId });
+    setNewTaskDescription("");
+    setAddingTaskForNoteId(null);
   }
 
   return (
@@ -124,6 +137,29 @@ export function NotesColumn({ activeDate }: NotesColumnProps) {
                   <span className="text-slate-400">Click to add note text...</span>
                 )}
               </div>
+            )}
+
+            {addingTaskForNoteId === note.id ? (
+              <input
+                autoFocus
+                value={newTaskDescription}
+                onChange={(e) => setNewTaskDescription(e.target.value)}
+                onBlur={() => submitRelatedTask(note.id)}
+                onKeyDown={(e) => e.key === "Enter" && submitRelatedTask(note.id)}
+                placeholder="Related task description"
+                className="mt-2 w-full rounded border border-slate-300 px-1 py-0.5 text-sm"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setAddingTaskForNoteId(note.id);
+                  setNewTaskDescription("");
+                }}
+                className="mt-2 flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
+              >
+                <ListPlus size={12} /> Add related task
+              </button>
             )}
           </div>
         ))}
