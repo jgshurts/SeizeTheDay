@@ -115,6 +115,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                     style={{
                       backgroundColor: task.status?.backgroundColor ?? undefined,
                       color: task.status?.foregroundColor ?? undefined,
+                      textAlignLast: "center",
                     }}
                     className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
                   >
@@ -132,6 +133,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                     onChange={(e) =>
                       updateTask(task.id, { priorityGroupId: e.target.value || null })
                     }
+                    style={{ textAlignLast: "center" }}
                     className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
                   >
                     <option value={NONE}>-</option>
