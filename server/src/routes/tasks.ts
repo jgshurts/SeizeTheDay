@@ -1,14 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
+import { parseDateParam } from "../lib/date";
 
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
-
-function parseDateParam(value: unknown): Date | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  return new Date(`${value}T00:00:00.000Z`);
-}
 
 // Default sort order: status.statusCode, priorityGroup.prty, then the task's
 // own prtyOrdinal (application.md calls this "Task.prty").

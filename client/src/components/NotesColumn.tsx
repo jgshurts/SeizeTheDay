@@ -1,30 +1,55 @@
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import type { Note, Project } from "../types";
 
 const NONE = "";
 
-export function NotesColumn() {
+interface NotesColumnProps {
+  activeDate: string;
+}
+
+export function NotesColumn({ activeDate }: NotesColumnProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<Note[]>("/notes").then(setNotes);
     api.get<Project[]>("/projects").then(setProjects);
   }, []);
 
+  useEffect(() => {
+    api.get<Note[]>(`/notes?date=${activeDate}`).then(setNotes);
+  }, [activeDate]);
+
   async function addNote() {
-    const note = await api.post<Note>("/notes", {});
-    setNotes((prev) => [note, ...prev]);
+    const note = await api.post<Note>("/notes", { contextDate: activeDate });
+    setNotes((prev) => [...prev, note]);
     setEditingNoteId(note.id);
   }
+
+  // Ctrl/Cmd+N is reserved by the browser for opening a new window, so we
+  // use Alt/Option+N instead -- see TasksColumn's Alt+T for the same reasoning.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.altKey && e.code === "KeyN") {
+        e.preventDefault();
+        addNote();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeDate]);
 
   async function updateNote(id: string, patch: Record<string, unknown>) {
     const updated = await api.patch<Note>(`/notes/${id}`, patch);
     setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
+  }
+
+  async function deleteNote(id: string) {
+    await api.delete(`/notes/${id}`);
+    setNotes((prev) => prev.filter((n) => n.id !== id));
   }
 
   return (
@@ -56,7 +81,17 @@ export function NotesColumn() {
                   </option>
                 ))}
               </select>
-              <span>{new Date(note.createdAt).toLocaleString()}</span>
+              <span className="flex items-center gap-2">
+                {new Date(note.createdAt).toLocaleString()}
+                <button
+                  type="button"
+                  aria-label="Delete note"
+                  onClick={() => deleteNote(note.id)}
+                  className="text-slate-400 hover:text-red-600"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </span>
             </div>
 
             <input

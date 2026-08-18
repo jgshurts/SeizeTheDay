@@ -49,5 +49,6 @@ export interface Note {
   shortRef: string | null;
   noteText: string | null;
   createdAt: string;
+  contextDate: string;
   project: Project | null;
 }

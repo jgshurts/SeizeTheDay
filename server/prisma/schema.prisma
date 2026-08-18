@@ -78,11 +78,12 @@ model Task {
 }
 
 model Note {
-  id        BigInt   @id @default(autoincrement())
-  projectId BigInt?  @map("project_id")
-  shortRef  String?  @map("short_ref") @db.VarChar(10)
-  noteText  String?  @map("note_text")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          BigInt   @id @default(autoincrement())
+  projectId   BigInt?  @map("project_id")
+  shortRef    String?  @map("short_ref") @db.VarChar(10)
+  noteText    String?  @map("note_text")
+  createdAt   DateTime @default(now()) @map("created_at")
+  contextDate DateTime @map("context_date") @db.Date
 
   project Project? @relation(fields: [projectId], references: [id])
 

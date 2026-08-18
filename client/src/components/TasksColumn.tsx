@@ -16,6 +16,8 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
   const [showCompleted, setShowCompleted] = useState(true);
   const [newDescription, setNewDescription] = useState("");
   const [adding, setAdding] = useState(false);
+  const [newPriorityGroupId, setNewPriorityGroupId] = useState<string | null>(null);
+  const [newPrtyOrdinal, setNewPrtyOrdinal] = useState<number | null>(null);
 
   useEffect(() => {
     api.get<Status[]>("/statuses").then(setStatuses);
@@ -28,6 +30,32 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
       .then(setTasks);
   }, [activeDate, showCompleted]);
 
+  function startAdding() {
+    const groupA = priorityGroups.find((pg) => pg.prtyCode === "A");
+    const maxOrdinalInA = tasks
+      .filter((t) => t.priorityGroup?.prtyCode === "A" && t.prtyOrdinal !== null)
+      .reduce((max, t) => Math.max(max, t.prtyOrdinal as number), 0);
+
+    setNewPriorityGroupId(groupA?.id ?? null);
+    setNewPrtyOrdinal(groupA ? maxOrdinalInA + 1 : null);
+    setAdding(true);
+  }
+
+  // Ctrl/Cmd+T is reserved by the browser for opening a new tab, so we use
+  // Alt/Option+T instead -- the only reliable "New Task" shortcut a page
+  // can actually receive. Checking e.code (not e.key) sidesteps the special
+  // characters macOS produces for Option+letter combos.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.altKey && e.code === "KeyT") {
+        e.preventDefault();
+        startAdding();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [tasks, priorityGroups]);
+
   async function addTask() {
     if (!newDescription.trim()) {
       setAdding(false);
@@ -36,6 +64,8 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
     const task = await api.post<Task>("/tasks", {
       description: newDescription.trim(),
       datePlanned: activeDate,
+      priorityGroupId: newPriorityGroupId,
+      prtyOrdinal: newPrtyOrdinal,
     });
     setTasks((prev) => [...prev, task]);
     setNewDescription("");
@@ -68,7 +98,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
 
       <button
         type="button"
-        onClick={() => setAdding(true)}
+        onClick={startAdding}
         className="mb-2 flex w-fit items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-sm text-white hover:bg-indigo-700"
       >
         <Plus size={16} /> New task
@@ -89,8 +119,12 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
             {adding && (
               <tr className="border-t border-slate-100">
                 <td className="px-2 py-1" />
-                <td className="px-2 py-1" />
-                <td className="px-2 py-1" />
+                <td className="px-2 py-1 text-center text-xs text-slate-400">
+                  {priorityGroups.find((pg) => pg.id === newPriorityGroupId)?.prtyCode ?? "-"}
+                </td>
+                <td className="px-2 py-1 text-center text-xs text-slate-400">
+                  {newPrtyOrdinal ?? "-"}
+                </td>
                 <td className="px-2 py-1">
                   <input
                     autoFocus

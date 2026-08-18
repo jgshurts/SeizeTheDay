@@ -22,7 +22,7 @@ export function MainPage() {
           <TasksColumn activeDate={activeDate} />
         </div>
         <div className="w-[65%] overflow-hidden">
-          <NotesColumn />
+          <NotesColumn activeDate={activeDate} />
         </div>
       </main>
 
