@@ -7,7 +7,6 @@ export interface User {
 
 export interface Status {
   id: string;
-  prty: number;
   statusCode: string;
   isComplete: boolean;
 }

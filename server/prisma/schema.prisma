@@ -33,7 +33,6 @@ model PriorityGroup {
 
 model Status {
   id         BigInt  @id @default(autoincrement())
-  prty       Int
   statusCode String  @map("status_code") @db.Char(1)
   isComplete Boolean @default(false) @map("is_complete")
 

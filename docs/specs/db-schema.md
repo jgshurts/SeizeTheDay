@@ -36,7 +36,6 @@ Columns:
 | colname     | type    | other                       |
 |-------------|---------|-----------------------------|
 | id          | bigint  | generated unique identifier |
-| prty        | int     |                             |
 | status_code | char(1) |                             |
 | is_complete | boolean | not null, default=false     |
 

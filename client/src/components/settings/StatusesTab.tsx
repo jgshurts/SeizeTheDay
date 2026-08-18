@@ -5,7 +5,6 @@ import type { Status } from "../../types";
 
 export function StatusesTab() {
   const [statuses, setStatuses] = useState<Status[]>([]);
-  const [draftPrty, setDraftPrty] = useState("");
   const [draftCode, setDraftCode] = useState("");
   const [draftComplete, setDraftComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,12 +17,10 @@ export function StatusesTab() {
     setError(null);
     try {
       const status = await api.post<Status>("/statuses", {
-        prty: Number(draftPrty),
         statusCode: draftCode,
         isComplete: draftComplete,
       });
-      setStatuses((prev) => [...prev, status].sort((a, b) => a.prty - b.prty));
-      setDraftPrty("");
+      setStatuses((prev) => [...prev, status].sort((a, b) => a.statusCode.localeCompare(b.statusCode)));
       setDraftCode("");
       setDraftComplete(false);
     } catch (err) {
@@ -57,7 +54,6 @@ export function StatusesTab() {
       <table className="w-full text-sm">
         <thead className="text-left text-slate-500">
           <tr>
-            <th className="w-16 px-2 py-1">Prty</th>
             <th className="w-16 px-2 py-1">Code</th>
             <th className="px-2 py-1">Complete?</th>
             <th className="w-8 px-2 py-1" />
@@ -66,14 +62,6 @@ export function StatusesTab() {
         <tbody>
           {statuses.map((s) => (
             <tr key={s.id} className="border-t border-slate-100">
-              <td className="px-2 py-1">
-                <input
-                  type="number"
-                  defaultValue={s.prty}
-                  onBlur={(e) => updateStatus(s.id, { prty: Number(e.target.value) })}
-                  className="w-full rounded border border-slate-200 px-1"
-                />
-              </td>
               <td className="px-2 py-1">
                 <input
                   defaultValue={s.statusCode}
@@ -104,14 +92,6 @@ export function StatusesTab() {
           <tr className="border-t border-slate-200">
             <td className="px-2 py-1">
               <input
-                type="number"
-                value={draftPrty}
-                onChange={(e) => setDraftPrty(e.target.value)}
-                className="w-full rounded border border-slate-300 px-1"
-              />
-            </td>
-            <td className="px-2 py-1">
-              <input
                 value={draftCode}
                 maxLength={1}
                 onChange={(e) => setDraftCode(e.target.value)}
@@ -132,7 +112,7 @@ export function StatusesTab() {
       <button
         type="button"
         onClick={addStatus}
-        disabled={!draftPrty || !draftCode}
+        disabled={!draftCode}
         className="mt-2 rounded bg-indigo-600 px-3 py-1 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
       >
         Add status

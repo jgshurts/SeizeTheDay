@@ -10,7 +10,7 @@ statusesRouter.use(requireAuth);
 statusesRouter.get(
   "/",
   asyncHandler(async (_req, res) => {
-    const statuses = await prisma.status.findMany({ orderBy: { prty: "asc" } });
+    const statuses = await prisma.status.findMany({ orderBy: { statusCode: "asc" } });
     res.json(statuses);
   }),
 );
@@ -18,16 +18,16 @@ statusesRouter.get(
 statusesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { prty, statusCode, isComplete } = req.body as Record<string, unknown>;
+    const { statusCode, isComplete } = req.body as Record<string, unknown>;
 
-    if (typeof prty !== "number" || typeof statusCode !== "string" || !statusCode) {
-      res.status(400).json({ error: "prty (number) and statusCode are required" });
+    if (typeof statusCode !== "string" || !statusCode) {
+      res.status(400).json({ error: "statusCode is required" });
       return;
     }
 
     try {
       const status = await prisma.status.create({
-        data: { prty, statusCode, isComplete: Boolean(isComplete) },
+        data: { statusCode, isComplete: Boolean(isComplete) },
       });
       res.status(201).json(status);
     } catch (err) {
@@ -40,13 +40,12 @@ statusesRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
-    const { prty, statusCode, isComplete } = req.body as Record<string, unknown>;
+    const { statusCode, isComplete } = req.body as Record<string, unknown>;
 
     try {
       const status = await prisma.status.update({
         where: { id },
         data: {
-          ...(prty !== undefined ? { prty: prty as number } : {}),
           ...(statusCode !== undefined ? { statusCode: statusCode as string } : {}),
           ...(isComplete !== undefined ? { isComplete: Boolean(isComplete) } : {}),
         },
