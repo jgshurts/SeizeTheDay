@@ -46,17 +46,17 @@ export function TasksColumn({
     setAdding(true);
   }
 
-  // Ctrl/Cmd+T and Ctrl/Cmd+F are reserved by the browser (new tab, find),
-  // so we use Alt/Option instead -- the only reliable shortcuts a page can
-  // actually receive. Checking e.code (not e.key) sidesteps the special
-  // characters macOS produces for Option+letter combos.
+  // Ctrl/Cmd+T is reserved by the browser (new tab), so we use Alt/Option
+  // instead -- the only reliable shortcuts a page can actually receive.
+  // Checking e.code (not e.key) sidesteps the special characters macOS
+  // produces for Option+letter combos.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (!e.altKey) return;
       if (e.code === "KeyT") {
         e.preventDefault();
         startAdding();
-      } else if (e.code === "KeyF") {
+      } else if (e.code === "KeyM") {
         e.preventDefault();
         setMoveDialogOpen(true);
       }
