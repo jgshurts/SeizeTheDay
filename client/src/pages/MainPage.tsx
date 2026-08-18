@@ -5,6 +5,7 @@ import { NotesColumn } from "../components/NotesColumn";
 import { SettingsDialog } from "../components/settings/SettingsDialog";
 import { toDateKey } from "../lib/date";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
+import { useIsMobile } from "../lib/useIsMobile";
 import { api } from "../lib/api";
 import type { PriorityGroup, Project, Status, Task } from "../types";
 
@@ -33,6 +34,9 @@ export function MainPage() {
   const [taskColumnWidth, setTaskColumnWidth] = useState(loadStoredSplit);
   const [isDraggingSplit, setIsDraggingSplit] = useState(false);
   const splitContainerRef = useRef<HTMLElement>(null);
+
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState<"tasks" | "notes">("tasks");
 
   useEffect(() => {
     api.get<Status[]>("/statuses").then(setStatuses);
@@ -107,6 +111,30 @@ export function MainPage() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
+  const tasksColumn = (
+    <TasksColumn
+      activeDate={activeDate}
+      tasks={tasks}
+      statuses={statuses}
+      priorityGroups={priorityGroups}
+      projects={projects}
+      showCompleted={showCompleted}
+      onShowCompletedChange={setShowCompleted}
+      onAddTask={(description) => addTask(description)}
+      onUpdateTask={updateTask}
+      onDeleteTask={deleteTask}
+    />
+  );
+
+  const notesColumn = (
+    <NotesColumn
+      activeDate={activeDate}
+      projects={projects}
+      contextProjectId={contextProjectId}
+      onAddRelatedTask={addTask}
+    />
+  );
+
   return (
     <div className="flex h-screen flex-col bg-slate-50">
       <Banner
@@ -116,44 +144,54 @@ export function MainPage() {
         projects={projects}
         contextProjectId={contextProjectId}
         onContextProjectChange={setContextProjectId}
+        compact={isMobile}
       />
 
-      <main
-        ref={splitContainerRef}
-        className={`flex flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
-      >
-        <div style={{ width: `${taskColumnWidth}%` }} className="overflow-hidden pr-2">
-          <TasksColumn
-            activeDate={activeDate}
-            tasks={tasks}
-            statuses={statuses}
-            priorityGroups={priorityGroups}
-            projects={projects}
-            showCompleted={showCompleted}
-            onShowCompletedChange={setShowCompleted}
-            onAddTask={(description) => addTask(description)}
-            onUpdateTask={updateTask}
-            onDeleteTask={deleteTask}
-          />
-        </div>
+      {isMobile ? (
+        <>
+          <div className="flex border-b border-slate-200 bg-white">
+            {(["tasks", "notes"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setMobileTab(tab)}
+                className={`flex-1 py-2 text-sm font-medium capitalize ${
+                  mobileTab === tab
+                    ? "border-b-2 border-indigo-600 text-indigo-700"
+                    : "text-slate-500"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
 
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize Tasks and Notes columns"
-          onMouseDown={() => setIsDraggingSplit(true)}
-          className="w-1 shrink-0 cursor-col-resize self-stretch rounded bg-slate-200 hover:bg-indigo-300 active:bg-indigo-400"
-        />
+          <main className="flex-1 overflow-hidden p-3">
+            {mobileTab === "tasks" ? tasksColumn : notesColumn}
+          </main>
+        </>
+      ) : (
+        <main
+          ref={splitContainerRef}
+          className={`flex flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
+        >
+          <div style={{ width: `${taskColumnWidth}%` }} className="overflow-hidden pr-2">
+            {tasksColumn}
+          </div>
 
-        <div style={{ width: `${100 - taskColumnWidth}%` }} className="overflow-hidden pl-2">
-          <NotesColumn
-            activeDate={activeDate}
-            projects={projects}
-            contextProjectId={contextProjectId}
-            onAddRelatedTask={addTask}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize Tasks and Notes columns"
+            onMouseDown={() => setIsDraggingSplit(true)}
+            className="w-1 shrink-0 cursor-col-resize self-stretch rounded bg-slate-200 hover:bg-indigo-300 active:bg-indigo-400"
           />
-        </div>
-      </main>
+
+          <div style={{ width: `${100 - taskColumnWidth}%` }} className="overflow-hidden pl-2">
+            {notesColumn}
+          </div>
+        </main>
+      )}
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </div>

@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import { ArrowLeftRight, Plus, StickyNote, Trash2 } from "lucide-react";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
+import { useIsMobile } from "../lib/useIsMobile";
 import { MoveTasksDialog } from "./MoveTasksDialog";
 import type { TaskMove } from "./MoveTasksDialog";
+import { MobileTextEditor } from "./MobileTextEditor";
 import type { PriorityGroup, Project, Status, Task } from "../types";
 
 interface TasksColumnProps {
@@ -39,6 +41,7 @@ export function TasksColumn({
   const [newPrtyOrdinal, setNewPrtyOrdinal] = useState<number | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   function startAdding() {
     const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
@@ -221,7 +224,7 @@ export function TasksColumn({
                   </select>
                 </td>
                 <td className="px-2 py-1">
-                  {editingDescriptionId === task.id ? (
+                  {editingDescriptionId === task.id && !isMobile ? (
                     <textarea
                       autoFocus
                       defaultValue={task.description}
@@ -298,6 +301,22 @@ export function TasksColumn({
           onClose={() => setMoveDialogOpen(false)}
         />
       )}
+
+      {isMobile &&
+        (() => {
+          const editingTask = tasks.find((t) => t.id === editingDescriptionId);
+          if (!editingTask) return null;
+          return (
+            <MobileTextEditor
+              title="Edit Description"
+              initialValue={editingTask.description}
+              onSave={(description) => {
+                onUpdateTask(editingTask.id, { description });
+                setEditingDescriptionId(null);
+              }}
+            />
+          );
+        })()}
     </section>
   );
 }

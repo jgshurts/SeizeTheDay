@@ -12,6 +12,7 @@ interface BannerProps {
   projects: Project[];
   contextProjectId: string | null;
   onContextProjectChange: (projectId: string | null) => void;
+  compact?: boolean;
 }
 
 export function Banner({
@@ -21,12 +22,13 @@ export function Banner({
   projects,
   contextProjectId,
   onContextProjectChange,
+  compact = false,
 }: BannerProps) {
   const { user, logout } = useAuth();
 
   return (
     <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-      <h1 className="text-lg font-semibold text-slate-800">Seize the Day</h1>
+      {!compact && <h1 className="text-lg font-semibold text-slate-800">Seize the Day</h1>}
 
       <div className="flex items-center gap-2">
         <button

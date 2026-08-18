@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import { ListPlus, Plus, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
+import { useIsMobile } from "../lib/useIsMobile";
+import { MobileTextEditor } from "./MobileTextEditor";
 import type { Note, Project, Task } from "../types";
 
 const NONE = "";
@@ -23,6 +25,7 @@ export function NotesColumn({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [addingTaskForNoteId, setAddingTaskForNoteId] = useState<string | null>(null);
   const [newTaskDescription, setNewTaskDescription] = useState("");
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     api.get<Note[]>(`/notes?date=${activeDate}`).then(setNotes);
@@ -120,7 +123,7 @@ export function NotesColumn({
               className="mb-2 w-32 rounded border border-transparent px-1 text-sm font-medium hover:border-slate-200 focus:border-slate-300"
             />
 
-            {editingNoteId === note.id ? (
+            {editingNoteId === note.id && !isMobile ? (
               <textarea
                 autoFocus
                 defaultValue={note.noteText ?? ""}
@@ -169,6 +172,22 @@ export function NotesColumn({
           </div>
         ))}
       </div>
+
+      {isMobile &&
+        (() => {
+          const editingNote = notes.find((n) => n.id === editingNoteId);
+          if (!editingNote) return null;
+          return (
+            <MobileTextEditor
+              title="Edit Note"
+              initialValue={editingNote.noteText ?? ""}
+              onSave={(noteText) => {
+                updateNote(editingNote.id, { noteText });
+                setEditingNoteId(null);
+              }}
+            />
+          );
+        })()}
     </section>
   );
 }
