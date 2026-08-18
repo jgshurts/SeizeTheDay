@@ -8,26 +8,31 @@ const NONE = "";
 
 interface NotesColumnProps {
   activeDate: string;
+  projects: Project[];
+  contextProjectId: string | null;
   onAddRelatedTask: (description: string, opts?: { noteId?: string }) => Promise<Task>;
 }
 
-export function NotesColumn({ activeDate, onAddRelatedTask }: NotesColumnProps) {
+export function NotesColumn({
+  activeDate,
+  projects,
+  contextProjectId,
+  onAddRelatedTask,
+}: NotesColumnProps) {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [addingTaskForNoteId, setAddingTaskForNoteId] = useState<string | null>(null);
   const [newTaskDescription, setNewTaskDescription] = useState("");
-
-  useEffect(() => {
-    api.get<Project[]>("/projects").then(setProjects);
-  }, []);
 
   useEffect(() => {
     api.get<Note[]>(`/notes?date=${activeDate}`).then(setNotes);
   }, [activeDate]);
 
   async function addNote() {
-    const note = await api.post<Note>("/notes", { contextDate: activeDate });
+    const note = await api.post<Note>("/notes", {
+      contextDate: activeDate,
+      projectId: contextProjectId,
+    });
     setNotes((prev) => [...prev, note]);
     setEditingNoteId(note.id);
   }
@@ -43,7 +48,7 @@ export function NotesColumn({ activeDate, onAddRelatedTask }: NotesColumnProps) 
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeDate]);
+  }, [activeDate, contextProjectId]);
 
   async function updateNote(id: string, patch: Record<string, unknown>) {
     const updated = await api.patch<Note>(`/notes/${id}`, patch);

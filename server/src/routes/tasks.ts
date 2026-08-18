@@ -14,13 +14,15 @@ tasksRouter.get("/", async (req, res) => {
     return res.status(400).json({ error: "Query param 'date' must be YYYY-MM-DD" });
   }
   const includeCompleted = req.query.includeCompleted !== "false";
+  const { projectId } = req.query;
 
   const tasks = await prisma.task.findMany({
     where: {
       datePlanned,
       ...(includeCompleted ? {} : { OR: [{ status: null }, { status: { isComplete: false } }] }),
+      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
     },
-    include: { status: true, priorityGroup: true, note: true },
+    include: { status: true, priorityGroup: true, note: true, project: true },
     orderBy: [
       { status: { statusCode: "asc" } },
       { priorityGroup: { prty: "asc" } },
@@ -62,7 +64,7 @@ tasksRouter.post("/", async (req: AuthedRequest, res) => {
       prtyOrdinal: typeof prtyOrdinal === "number" ? prtyOrdinal : null,
       noteId: noteId ? BigInt(noteId as string) : null,
     },
-    include: { status: true, priorityGroup: true, note: true },
+    include: { status: true, priorityGroup: true, note: true, project: true },
   });
 
   res.status(201).json(task);
@@ -95,7 +97,7 @@ tasksRouter.patch("/:id", async (req, res) => {
       ...(assigneeId !== undefined ? { assigneeId: BigInt(assigneeId as string) } : {}),
       ...completedAtUpdate,
     },
-    include: { status: true, priorityGroup: true, note: true },
+    include: { status: true, priorityGroup: true, note: true, project: true },
   });
 
   res.json(task);

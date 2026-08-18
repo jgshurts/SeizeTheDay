@@ -43,6 +43,7 @@ export interface Task {
   status: Status | null;
   priorityGroup: PriorityGroup | null;
   note: { id: string; noteText: string | null } | null;
+  project: Project | null;
 }
 
 export interface Note {

@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
-import { Plus, StickyNote, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Plus, StickyNote, Trash2 } from "lucide-react";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
-import type { PriorityGroup, Status, Task } from "../types";
+import { MoveTasksDialog } from "./MoveTasksDialog";
+import type { TaskMove } from "./MoveTasksDialog";
+import type { PriorityGroup, Project, Status, Task } from "../types";
 
 interface TasksColumnProps {
+  activeDate: string;
   tasks: Task[];
   statuses: Status[];
   priorityGroups: PriorityGroup[];
+  projects: Project[];
   showCompleted: boolean;
   onShowCompletedChange: (value: boolean) => void;
   onAddTask: (description: string) => Promise<Task>;
@@ -18,9 +22,11 @@ interface TasksColumnProps {
 const NONE = "";
 
 export function TasksColumn({
+  activeDate,
   tasks,
   statuses,
   priorityGroups,
+  projects,
   showCompleted,
   onShowCompletedChange,
   onAddTask,
@@ -31,6 +37,7 @@ export function TasksColumn({
   const [adding, setAdding] = useState(false);
   const [newPriorityGroupId, setNewPriorityGroupId] = useState<string | null>(null);
   const [newPrtyOrdinal, setNewPrtyOrdinal] = useState<number | null>(null);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
 
   function startAdding() {
     const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
@@ -39,15 +46,19 @@ export function TasksColumn({
     setAdding(true);
   }
 
-  // Ctrl/Cmd+T is reserved by the browser for opening a new tab, so we use
-  // Alt/Option+T instead -- the only reliable "New Task" shortcut a page
-  // can actually receive. Checking e.code (not e.key) sidesteps the special
+  // Ctrl/Cmd+T and Ctrl/Cmd+F are reserved by the browser (new tab, find),
+  // so we use Alt/Option instead -- the only reliable shortcuts a page can
+  // actually receive. Checking e.code (not e.key) sidesteps the special
   // characters macOS produces for Option+letter combos.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.altKey && e.code === "KeyT") {
+      if (!e.altKey) return;
+      if (e.code === "KeyT") {
         e.preventDefault();
         startAdding();
+      } else if (e.code === "KeyF") {
+        e.preventDefault();
+        setMoveDialogOpen(true);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -64,6 +75,14 @@ export function TasksColumn({
     setAdding(false);
   }
 
+  const unfinishedTasks = tasks.filter((t) => !t.status?.isComplete);
+
+  async function moveTasks(moves: TaskMove[]) {
+    await Promise.all(
+      moves.map(({ taskId, date }) => onUpdateTask(taskId, { datePlanned: date })),
+    );
+  }
+
   return (
     <section className="flex h-full flex-col">
       <div className="mb-2 flex items-center justify-between">
@@ -78,21 +97,31 @@ export function TasksColumn({
         </label>
       </div>
 
-      <button
-        type="button"
-        onClick={startAdding}
-        className="mb-2 flex w-fit items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-sm text-white hover:bg-indigo-700"
-      >
-        <Plus size={16} /> New task
-      </button>
+      <div className="mb-2 flex gap-2">
+        <button
+          type="button"
+          onClick={startAdding}
+          className="flex w-fit items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-sm text-white hover:bg-indigo-700"
+        >
+          <Plus size={16} /> New task
+        </button>
+        <button
+          type="button"
+          onClick={() => setMoveDialogOpen(true)}
+          className="flex w-fit items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
+        >
+          <ArrowLeftRight size={16} /> Move unfinished
+        </button>
+      </div>
 
       <div className="flex-1 overflow-y-auto rounded border border-slate-200">
         <table className="w-full table-fixed text-sm">
           <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
             <tr>
-              <th className="w-12 px-2 py-1 text-center">Sta</th>
-              <th className="w-12 px-2 py-1 text-center">PG</th>
-              <th className="w-12 px-2 py-1 text-center">PR</th>
+              <th className="w-10 px-1 py-1 text-center">Sta</th>
+              <th className="w-10 px-1 py-1 text-center">PG</th>
+              <th className="w-10 px-1 py-1 text-center">PR</th>
+              <th className="w-20 px-1 py-1 text-center">PJ</th>
               <th className="px-2 py-1">Description</th>
               <th className="w-10 px-2 py-1 text-center">Note</th>
               <th className="w-8 px-2 py-1" />
@@ -101,13 +130,14 @@ export function TasksColumn({
           <tbody>
             {adding && (
               <tr className="border-t border-slate-100">
-                <td className="px-2 py-1" />
-                <td className="px-2 py-1 text-center text-xs text-slate-400">
+                <td className="px-1 py-1" />
+                <td className="px-1 py-1 text-center text-xs text-slate-400">
                   {priorityGroups.find((pg) => pg.id === newPriorityGroupId)?.prtyCode ?? "-"}
                 </td>
-                <td className="px-2 py-1 text-center text-xs text-slate-400">
+                <td className="px-1 py-1 text-center text-xs text-slate-400">
                   {newPrtyOrdinal ?? "-"}
                 </td>
+                <td className="px-1 py-1" />
                 <td className="px-2 py-1">
                   <input
                     autoFocus
@@ -125,7 +155,7 @@ export function TasksColumn({
             )}
             {tasks.map((task) => (
               <tr key={task.id} className="border-t border-slate-100">
-                <td className="px-2 py-1">
+                <td className="px-1 py-1">
                   <select
                     value={task.statusId ?? NONE}
                     onChange={(e) => onUpdateTask(task.id, { statusId: e.target.value || null })}
@@ -145,7 +175,7 @@ export function TasksColumn({
                     ))}
                   </select>
                 </td>
-                <td className="px-2 py-1">
+                <td className="px-1 py-1">
                   <select
                     value={task.priorityGroupId ?? NONE}
                     onChange={(e) =>
@@ -162,7 +192,7 @@ export function TasksColumn({
                     ))}
                   </select>
                 </td>
-                <td className="px-2 py-1">
+                <td className="px-1 py-1">
                   <input
                     type="number"
                     defaultValue={task.prtyOrdinal ?? undefined}
@@ -173,6 +203,21 @@ export function TasksColumn({
                     }
                     className="w-full rounded border border-slate-200 px-1 text-center"
                   />
+                </td>
+                <td className="px-1 py-1">
+                  <select
+                    value={task.projectId ?? NONE}
+                    onChange={(e) => onUpdateTask(task.id, { projectId: e.target.value || null })}
+                    title={task.project?.name ?? undefined}
+                    className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
+                  >
+                    <option value={NONE}>-</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-2 py-1">
                   <input
@@ -215,6 +260,15 @@ export function TasksColumn({
           </tbody>
         </table>
       </div>
+
+      {moveDialogOpen && (
+        <MoveTasksDialog
+          activeDate={activeDate}
+          unfinishedTasks={unfinishedTasks}
+          onMove={moveTasks}
+          onClose={() => setMoveDialogOpen(false)}
+        />
+      )}
     </section>
   );
 }

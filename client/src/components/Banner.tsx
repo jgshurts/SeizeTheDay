@@ -1,14 +1,27 @@
 import { ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { addDays, formatDisplay } from "../lib/date";
+import type { Project } from "../types";
+
+const NONE = "";
 
 interface BannerProps {
   activeDate: string;
   onDateChange: (date: string) => void;
   onOpenSettings: () => void;
+  projects: Project[];
+  contextProjectId: string | null;
+  onContextProjectChange: (projectId: string | null) => void;
 }
 
-export function Banner({ activeDate, onDateChange, onOpenSettings }: BannerProps) {
+export function Banner({
+  activeDate,
+  onDateChange,
+  onOpenSettings,
+  projects,
+  contextProjectId,
+  onContextProjectChange,
+}: BannerProps) {
   const { user, logout } = useAuth();
 
   return (
@@ -41,6 +54,24 @@ export function Banner({ activeDate, onDateChange, onOpenSettings }: BannerProps
         >
           <ChevronRight size={20} />
         </button>
+
+        <select
+          aria-label="Context project"
+          value={contextProjectId ?? NONE}
+          onChange={(e) => onContextProjectChange(e.target.value || null)}
+          className={`ml-2 rounded border px-2 py-1 text-sm ${
+            contextProjectId
+              ? "border-amber-400 bg-amber-100 font-medium text-amber-800"
+              : "border-slate-300 bg-white text-slate-700"
+          }`}
+        >
+          <option value={NONE}>All Projects</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="flex items-center gap-3">
