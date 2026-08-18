@@ -13,7 +13,7 @@ export function Banner({ activeDate, onDateChange, onOpenSettings }: BannerProps
 
   return (
     <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-      <h1 className="text-lg font-semibold text-slate-800">Sieze the Day</h1>
+      <h1 className="text-lg font-semibold text-slate-800">Seize the Day</h1>
 
       <div className="flex items-center gap-2">
         <button

@@ -6,5 +6,5 @@ import { app } from "./app";
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 
 app.listen(PORT, () => {
-  console.log(`Sieze the Day API listening on port ${PORT}`);
+  console.log(`Seize the Day API listening on port ${PORT}`);
 });

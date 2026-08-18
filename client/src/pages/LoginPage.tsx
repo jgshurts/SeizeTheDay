@@ -29,7 +29,7 @@ export function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-lg bg-white p-8 shadow-md"
       >
-        <h1 className="mb-6 text-2xl font-semibold text-slate-800">Sieze the Day</h1>
+        <h1 className="mb-6 text-2xl font-semibold text-slate-800">Seize the Day</h1>
 
         <label className="mb-1 block text-sm font-medium text-slate-600" htmlFor="nickname">
           Nickname

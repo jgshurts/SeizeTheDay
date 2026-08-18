@@ -1,6 +1,6 @@
 # High level application overview:
 
-This application will be called "Sieze the Day", and it will serve as a personal, daily to-do manager and information organization tool.
+This application will be called "Seize the Day", and it will serve as a personal, daily to-do manager and information organization tool.
 
 ## Technology
 The tech stack for this application is in docs/specs/tech-fundamentals.md.
