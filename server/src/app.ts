@@ -4,10 +4,10 @@ import cors from "cors";
 import { authRouter } from "./routes/auth";
 import { tasksRouter } from "./routes/tasks";
 import { notesRouter } from "./routes/notes";
-import { lookupsRouter } from "./routes/lookups";
 import { statusesRouter } from "./routes/statuses";
 import { priorityGroupsRouter } from "./routes/priorityGroups";
 import { usersRouter } from "./routes/users";
+import { projectsRouter } from "./routes/projects";
 
 export const app = express();
 
@@ -22,7 +22,7 @@ app.use("/api/notes", notesRouter);
 app.use("/api/statuses", statusesRouter);
 app.use("/api/priority-groups", priorityGroupsRouter);
 app.use("/api/users", usersRouter);
-app.use("/api", lookupsRouter);
+app.use("/api/projects", projectsRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

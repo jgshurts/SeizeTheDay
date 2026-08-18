@@ -3,17 +3,19 @@ import { Modal } from "../Modal";
 import { StatusesTab } from "./StatusesTab";
 import { PriorityGroupsTab } from "./PriorityGroupsTab";
 import { UsersTab } from "./UsersTab";
+import { ProjectsTab } from "./ProjectsTab";
 
-type Tab = "statuses" | "priorityGroups" | "users";
+type Tab = "projects" | "statuses" | "priorityGroups" | "users";
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "projects", label: "Projects" },
   { id: "statuses", label: "Statuses" },
   { id: "priorityGroups", label: "Priority Groups" },
   { id: "users", label: "Users" },
 ];
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>("statuses");
+  const [tab, setTab] = useState<Tab>("projects");
 
   return (
     <Modal title="Settings" onClose={onClose}>
@@ -34,6 +36,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
+      {tab === "projects" && <ProjectsTab />}
       {tab === "statuses" && <StatusesTab />}
       {tab === "priorityGroups" && <PriorityGroupsTab />}
       {tab === "users" && <UsersTab />}
