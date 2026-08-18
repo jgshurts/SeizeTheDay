@@ -85,7 +85,7 @@ export function NotesColumn({
 
       <div className="flex-1 space-y-3 overflow-y-auto">
         {notes.map((note) => (
-          <div key={note.id} className="rounded border border-slate-200 p-3">
+          <div key={note.id} className="rounded border border-yellow-200 bg-yellow-50 p-3">
             <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
               <select
                 value={note.projectId ?? NONE}
@@ -134,7 +134,7 @@ export function NotesColumn({
             ) : (
               <div
                 onClick={() => setEditingNoteId(note.id)}
-                className="prose prose-sm max-w-none cursor-text rounded p-1 hover:bg-slate-50"
+                className="prose prose-sm max-w-none cursor-text rounded p-1 hover:bg-yellow-100"
               >
                 {note.noteText ? (
                   <Markdown>{note.noteText}</Markdown>

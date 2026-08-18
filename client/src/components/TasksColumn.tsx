@@ -38,6 +38,7 @@ export function TasksColumn({
   const [newPriorityGroupId, setNewPriorityGroupId] = useState<string | null>(null);
   const [newPrtyOrdinal, setNewPrtyOrdinal] = useState<number | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
 
   function startAdding() {
     const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
@@ -120,7 +121,7 @@ export function TasksColumn({
             <tr>
               <th className="w-10 px-1 py-1 text-center">Sta</th>
               <th className="w-10 px-1 py-1 text-center">PG</th>
-              <th className="w-10 px-1 py-1 text-center">PR</th>
+              <th className="w-[44px] px-1 py-1 text-center">PR</th>
               <th className="w-20 px-1 py-1 text-center">PJ</th>
               <th className="px-2 py-1">Description</th>
               <th className="w-10 px-2 py-1 text-center">Note</th>
@@ -220,11 +221,39 @@ export function TasksColumn({
                   </select>
                 </td>
                 <td className="px-2 py-1">
-                  <input
-                    defaultValue={task.description}
-                    onBlur={(e) => onUpdateTask(task.id, { description: e.target.value })}
-                    className="w-full rounded border border-transparent px-1 hover:border-slate-200 focus:border-slate-300"
-                  />
+                  {editingDescriptionId === task.id ? (
+                    <textarea
+                      autoFocus
+                      defaultValue={task.description}
+                      rows={3}
+                      onBlur={(e) => {
+                        onUpdateTask(task.id, { description: e.target.value });
+                        setEditingDescriptionId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className="w-full rounded border border-slate-300 p-1 text-sm"
+                    />
+                  ) : (
+                    <div className="group relative">
+                      <div
+                        onClick={() => setEditingDescriptionId(task.id)}
+                        className="cursor-text truncate rounded border border-transparent px-1 py-1 hover:border-slate-200"
+                      >
+                        {task.description}
+                      </div>
+                      <div
+                        role="tooltip"
+                        className="pointer-events-none invisible absolute left-0 top-full z-20 mt-1 w-72 whitespace-pre-wrap rounded bg-slate-800 px-2 py-1.5 text-left text-xs normal-case text-slate-100 opacity-0 shadow-lg transition-opacity duration-100 group-hover:visible group-hover:opacity-100"
+                      >
+                        {task.description}
+                      </div>
+                    </div>
+                  )}
                 </td>
                 <td className="px-2 py-1 text-center">
                   {task.note && (

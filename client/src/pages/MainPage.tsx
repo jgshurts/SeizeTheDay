@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Banner } from "../components/Banner";
 import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
@@ -7,6 +7,17 @@ import { toDateKey } from "../lib/date";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { api } from "../lib/api";
 import type { PriorityGroup, Project, Status, Task } from "../types";
+
+const SPLIT_STORAGE_KEY = "std_task_column_width";
+const DEFAULT_SPLIT = 50;
+const MIN_SPLIT = 20;
+const MAX_SPLIT = 80;
+
+function loadStoredSplit(): number {
+  const stored = Number(localStorage.getItem(SPLIT_STORAGE_KEY));
+  if (!Number.isFinite(stored)) return DEFAULT_SPLIT;
+  return Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, stored));
+}
 
 export function MainPage() {
   const [activeDate, setActiveDate] = useState(() => toDateKey(new Date()));
@@ -18,6 +29,10 @@ export function MainPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCompleted, setShowCompleted] = useState(true);
   const [contextProjectId, setContextProjectId] = useState<string | null>(null);
+
+  const [taskColumnWidth, setTaskColumnWidth] = useState(loadStoredSplit);
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
+  const splitContainerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     api.get<Status[]>("/statuses").then(setStatuses);
@@ -31,6 +46,34 @@ export function MainPage() {
       .get<Task[]>(`/tasks?date=${activeDate}&includeCompleted=${showCompleted}${projectParam}`)
       .then(setTasks);
   }, [activeDate, showCompleted, contextProjectId]);
+
+  // Dragging the Tasks/Notes divider. Position is derived straight from the
+  // mouse event rather than component state, so there's no stale-closure risk
+  // even though this listener is only attached once per drag.
+  useEffect(() => {
+    if (!isDraggingSplit) return;
+
+    function handleMouseMove(e: MouseEvent) {
+      const container = splitContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const percent = ((e.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, percent));
+      setTaskColumnWidth(clamped);
+      localStorage.setItem(SPLIT_STORAGE_KEY, String(clamped));
+    }
+
+    function handleMouseUp() {
+      setIsDraggingSplit(false);
+    }
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDraggingSplit]);
 
   async function addTask(description: string, opts?: { noteId?: string }) {
     const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
@@ -75,8 +118,11 @@ export function MainPage() {
         onContextProjectChange={setContextProjectId}
       />
 
-      <main className="flex flex-1 gap-4 overflow-hidden p-4">
-        <div className="w-1/2 overflow-hidden">
+      <main
+        ref={splitContainerRef}
+        className={`flex flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
+      >
+        <div style={{ width: `${taskColumnWidth}%` }} className="overflow-hidden pr-2">
           <TasksColumn
             activeDate={activeDate}
             tasks={tasks}
@@ -90,7 +136,16 @@ export function MainPage() {
             onDeleteTask={deleteTask}
           />
         </div>
-        <div className="w-1/2 overflow-hidden">
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize Tasks and Notes columns"
+          onMouseDown={() => setIsDraggingSplit(true)}
+          className="w-1 shrink-0 cursor-col-resize self-stretch rounded bg-slate-200 hover:bg-indigo-300 active:bg-indigo-400"
+        />
+
+        <div style={{ width: `${100 - taskColumnWidth}%` }} className="overflow-hidden pl-2">
           <NotesColumn
             activeDate={activeDate}
             projects={projects}
