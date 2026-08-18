@@ -1,13 +1,14 @@
-import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { addDays, formatDisplay } from "../lib/date";
 
 interface BannerProps {
   activeDate: string;
   onDateChange: (date: string) => void;
+  onOpenSettings: () => void;
 }
 
-export function Banner({ activeDate, onDateChange }: BannerProps) {
+export function Banner({ activeDate, onDateChange, onOpenSettings }: BannerProps) {
   const { user, logout } = useAuth();
 
   return (
@@ -43,6 +44,14 @@ export function Banner({ activeDate, onDateChange }: BannerProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          aria-label="Settings"
+          onClick={onOpenSettings}
+          className="rounded p-1 text-slate-500 hover:bg-slate-100"
+        >
+          <Settings size={18} />
+        </button>
         <span className="rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-700">
           {user?.nickname}
         </span>
