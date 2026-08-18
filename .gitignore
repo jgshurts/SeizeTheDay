@@ -1,0 +1,36 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/.pnp
+.pnp.js
+
+# Build output
+/tmp
+/out-tsc
+dist/
+build/
+client/dist/
+server/dist/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Prisma
+server/prisma/*.db
+
+# Stray local shell config (not part of this project)
+.bash_profile
+.bash_profileexport

@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        BigInt   @id @default(autoincrement())
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  nickname  String   @unique
+  password  String
+
+  ownedTasks    Task[] @relation("TaskOwner")
+  assignedTasks Task[] @relation("TaskAssignee")
+
+  @@map("users")
+}
+
+model PriorityGroup {
+  id          BigInt  @id @default(autoincrement())
+  prty        Int
+  prtyCode    String  @map("prty_code") @db.Char(1)
+  description String?
+
+  tasks Task[]
+
+  @@map("priority_groups")
+}
+
+model Status {
+  id         BigInt  @id @default(autoincrement())
+  prty       Int
+  statusCode String  @map("status_code") @db.Char(1)
+  isComplete Boolean @default(false) @map("is_complete")
+
+  tasks Task[]
+
+  @@map("statuses")
+}
+
+model Project {
+  id          BigInt  @id @default(autoincrement())
+  name        String
+  description String?
+
+  tasks Task[]
+  notes Note[]
+
+  @@map("projects")
+}
+
+model Task {
+  id              BigInt    @id @default(autoincrement())
+  projectId       BigInt?   @map("project_id")
+  ownerId         BigInt    @map("owner_id")
+  assigneeId      BigInt    @map("assignee_id")
+  priorityGroupId BigInt?   @map("priority_group_id")
+  statusId        BigInt?   @map("status_id")
+  prtyOrdinal     Int?      @map("prty_ordinal")
+  description     String
+  createdAt       DateTime  @default(now()) @map("created_at")
+  datePlanned     DateTime  @map("date_planned") @db.Date
+  completedAt     DateTime? @map("completed_at")
+
+  project       Project?       @relation(fields: [projectId], references: [id])
+  owner         User           @relation("TaskOwner", fields: [ownerId], references: [id])
+  assignee      User           @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  priorityGroup PriorityGroup? @relation(fields: [priorityGroupId], references: [id])
+  status        Status?        @relation(fields: [statusId], references: [id])
+
+  @@map("tasks")
+}
+
+model Note {
+  id        BigInt   @id @default(autoincrement())
+  projectId BigInt?  @map("project_id")
+  shortRef  String?  @map("short_ref") @db.VarChar(10)
+  noteText  String?  @map("note_text")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@map("notes")
+}
