@@ -6,9 +6,27 @@ const prisma = new PrismaClient();
 async function main() {
   await prisma.status.createMany({
     data: [
-      { statusCode: "O", isComplete: false }, // Open
-      { statusCode: "P", isComplete: false }, // In Progress
-      { statusCode: "D", isComplete: true }, // Done
+      {
+        statusCode: "O",
+        isComplete: false,
+        backgroundColor: "#E5E7EB",
+        foregroundColor: "#374151",
+        description: "Open",
+      },
+      {
+        statusCode: "P",
+        isComplete: false,
+        backgroundColor: "#FEF3C7",
+        foregroundColor: "#92400E",
+        description: "In Progress",
+      },
+      {
+        statusCode: "D",
+        isComplete: true,
+        backgroundColor: "#D1FAE5",
+        foregroundColor: "#065F46",
+        description: "Done",
+      },
     ],
     skipDuplicates: true,
   });

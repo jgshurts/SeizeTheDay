@@ -78,9 +78,9 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
         <table className="w-full table-fixed text-sm">
           <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
             <tr>
-              <th className="w-12 px-2 py-1">Sta</th>
-              <th className="w-12 px-2 py-1">PG</th>
-              <th className="w-12 px-2 py-1">PR</th>
+              <th className="w-12 px-2 py-1 text-center">Sta</th>
+              <th className="w-12 px-2 py-1 text-center">PG</th>
+              <th className="w-12 px-2 py-1 text-center">PR</th>
               <th className="px-2 py-1">Description</th>
               <th className="w-8 px-2 py-1" />
             </tr>
@@ -111,7 +111,12 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                   <select
                     value={task.statusId ?? NONE}
                     onChange={(e) => updateTask(task.id, { statusId: e.target.value || null })}
-                    className="w-full rounded border border-slate-200 bg-white text-xs"
+                    title={task.status?.description ?? undefined}
+                    style={{
+                      backgroundColor: task.status?.backgroundColor ?? undefined,
+                      color: task.status?.foregroundColor ?? undefined,
+                    }}
+                    className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
                   >
                     <option value={NONE}>-</option>
                     {statuses.map((s) => (
@@ -127,7 +132,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                     onChange={(e) =>
                       updateTask(task.id, { priorityGroupId: e.target.value || null })
                     }
-                    className="w-full rounded border border-slate-200 bg-white text-xs"
+                    className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
                   >
                     <option value={NONE}>-</option>
                     {priorityGroups.map((pg) => (
@@ -146,7 +151,7 @@ export function TasksColumn({ activeDate }: TasksColumnProps) {
                         prtyOrdinal: e.target.value === "" ? null : Number(e.target.value),
                       })
                     }
-                    className="w-full rounded border border-slate-200 px-1"
+                    className="w-full rounded border border-slate-200 px-1 text-center"
                   />
                 </td>
                 <td className="px-2 py-1">

@@ -18,7 +18,8 @@ statusesRouter.get(
 statusesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { statusCode, isComplete } = req.body as Record<string, unknown>;
+    const { statusCode, isComplete, backgroundColor, foregroundColor, description } =
+      req.body as Record<string, unknown>;
 
     if (typeof statusCode !== "string" || !statusCode) {
       res.status(400).json({ error: "statusCode is required" });
@@ -27,7 +28,13 @@ statusesRouter.post(
 
     try {
       const status = await prisma.status.create({
-        data: { statusCode, isComplete: Boolean(isComplete) },
+        data: {
+          statusCode,
+          isComplete: Boolean(isComplete),
+          backgroundColor: (backgroundColor as string | undefined) ?? null,
+          foregroundColor: (foregroundColor as string | undefined) ?? null,
+          description: (description as string | undefined) ?? null,
+        },
       });
       res.status(201).json(status);
     } catch (err) {
@@ -40,7 +47,8 @@ statusesRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
-    const { statusCode, isComplete } = req.body as Record<string, unknown>;
+    const { statusCode, isComplete, backgroundColor, foregroundColor, description } =
+      req.body as Record<string, unknown>;
 
     try {
       const status = await prisma.status.update({
@@ -48,6 +56,13 @@ statusesRouter.patch(
         data: {
           ...(statusCode !== undefined ? { statusCode: statusCode as string } : {}),
           ...(isComplete !== undefined ? { isComplete: Boolean(isComplete) } : {}),
+          ...(backgroundColor !== undefined
+            ? { backgroundColor: backgroundColor as string | null }
+            : {}),
+          ...(foregroundColor !== undefined
+            ? { foregroundColor: foregroundColor as string | null }
+            : {}),
+          ...(description !== undefined ? { description: description as string | null } : {}),
         },
       });
       res.json(status);

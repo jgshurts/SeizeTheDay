@@ -32,9 +32,12 @@ model PriorityGroup {
 }
 
 model Status {
-  id         BigInt  @id @default(autoincrement())
-  statusCode String  @map("status_code") @db.Char(1)
-  isComplete Boolean @default(false) @map("is_complete")
+  id              BigInt  @id @default(autoincrement())
+  statusCode      String  @map("status_code") @db.Char(1)
+  isComplete      Boolean @default(false) @map("is_complete")
+  backgroundColor String? @map("background_color")
+  foregroundColor String? @map("foreground_color")
+  description     String?
 
   tasks Task[]
 

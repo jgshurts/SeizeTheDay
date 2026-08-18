@@ -9,6 +9,9 @@ export interface Status {
   id: string;
   statusCode: string;
   isComplete: boolean;
+  backgroundColor: string | null;
+  foregroundColor: string | null;
+  description: string | null;
 }
 
 export interface PriorityGroup {

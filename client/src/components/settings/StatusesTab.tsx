@@ -3,10 +3,16 @@ import { Trash2 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
 import type { Status } from "../../types";
 
+const DEFAULT_BG = "#e5e7eb";
+const DEFAULT_FG = "#374151";
+
 export function StatusesTab() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [draftCode, setDraftCode] = useState("");
   const [draftComplete, setDraftComplete] = useState(false);
+  const [draftDescription, setDraftDescription] = useState("");
+  const [draftBackground, setDraftBackground] = useState(DEFAULT_BG);
+  const [draftForeground, setDraftForeground] = useState(DEFAULT_FG);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,10 +25,16 @@ export function StatusesTab() {
       const status = await api.post<Status>("/statuses", {
         statusCode: draftCode,
         isComplete: draftComplete,
+        description: draftDescription || null,
+        backgroundColor: draftBackground,
+        foregroundColor: draftForeground,
       });
       setStatuses((prev) => [...prev, status].sort((a, b) => a.statusCode.localeCompare(b.statusCode)));
       setDraftCode("");
       setDraftComplete(false);
+      setDraftDescription("");
+      setDraftBackground(DEFAULT_BG);
+      setDraftForeground(DEFAULT_FG);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to add status");
     }
@@ -56,6 +68,9 @@ export function StatusesTab() {
           <tr>
             <th className="w-16 px-2 py-1">Code</th>
             <th className="px-2 py-1">Complete?</th>
+            <th className="px-2 py-1">Description</th>
+            <th className="w-16 px-2 py-1">Bg</th>
+            <th className="w-16 px-2 py-1">Fg</th>
             <th className="w-8 px-2 py-1" />
           </tr>
         </thead>
@@ -75,6 +90,29 @@ export function StatusesTab() {
                   type="checkbox"
                   checked={s.isComplete}
                   onChange={(e) => updateStatus(s.id, { isComplete: e.target.checked })}
+                />
+              </td>
+              <td className="px-2 py-1">
+                <input
+                  defaultValue={s.description ?? ""}
+                  onBlur={(e) => updateStatus(s.id, { description: e.target.value || null })}
+                  className="w-full rounded border border-slate-200 px-1"
+                />
+              </td>
+              <td className="px-2 py-1">
+                <input
+                  type="color"
+                  value={s.backgroundColor ?? DEFAULT_BG}
+                  onChange={(e) => updateStatus(s.id, { backgroundColor: e.target.value })}
+                  className="h-7 w-full rounded border border-slate-200"
+                />
+              </td>
+              <td className="px-2 py-1">
+                <input
+                  type="color"
+                  value={s.foregroundColor ?? DEFAULT_FG}
+                  onChange={(e) => updateStatus(s.id, { foregroundColor: e.target.value })}
+                  className="h-7 w-full rounded border border-slate-200"
                 />
               </td>
               <td className="px-2 py-1 text-right">
@@ -103,6 +141,29 @@ export function StatusesTab() {
                 type="checkbox"
                 checked={draftComplete}
                 onChange={(e) => setDraftComplete(e.target.checked)}
+              />
+            </td>
+            <td className="px-2 py-1">
+              <input
+                value={draftDescription}
+                onChange={(e) => setDraftDescription(e.target.value)}
+                className="w-full rounded border border-slate-300 px-1"
+              />
+            </td>
+            <td className="px-2 py-1">
+              <input
+                type="color"
+                value={draftBackground}
+                onChange={(e) => setDraftBackground(e.target.value)}
+                className="h-7 w-full rounded border border-slate-300"
+              />
+            </td>
+            <td className="px-2 py-1">
+              <input
+                type="color"
+                value={draftForeground}
+                onChange={(e) => setDraftForeground(e.target.value)}
+                className="h-7 w-full rounded border border-slate-300"
               />
             </td>
             <td className="px-2 py-1" />
