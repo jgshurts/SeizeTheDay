@@ -6,8 +6,9 @@ import { parseDateParam } from "../lib/date";
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
 
-// Default sort order: status.statusCode, priorityGroup.prty, then the task's
-// own prtyOrdinal (application.md calls this "Task.prty").
+// Default sort order: status.ordinal (lets completed statuses sort to the
+// bottom regardless of their code), priorityGroup.prty, then the task's own
+// prtyOrdinal (application.md calls this "Task.prty").
 tasksRouter.get("/", async (req, res) => {
   const datePlanned = parseDateParam(req.query.date);
   if (!datePlanned) {
@@ -24,7 +25,7 @@ tasksRouter.get("/", async (req, res) => {
     },
     include: { status: true, priorityGroup: true, note: true, project: true },
     orderBy: [
-      { status: { statusCode: "asc" } },
+      { status: { ordinal: "asc" } },
       { priorityGroup: { prty: "asc" } },
       { prtyOrdinal: "asc" },
     ],
@@ -52,6 +53,16 @@ tasksRouter.post("/", async (req: AuthedRequest, res) => {
 
   const ownerId = BigInt(req.user!.userId);
 
+  // New tasks without an explicit status fall back to whichever status is
+  // marked default (e.g. "Not Started"), rather than having no status at
+  // all -- a null status sorts last regardless of intent, which defeats the
+  // point of an explicit "not started" ordinal.
+  let resolvedStatusId = statusId ? BigInt(statusId as string) : null;
+  if (!statusId) {
+    const defaultStatus = await prisma.status.findFirst({ where: { isDefault: true } });
+    resolvedStatusId = defaultStatus?.id ?? null;
+  }
+
   const task = await prisma.task.create({
     data: {
       description,
@@ -60,7 +71,7 @@ tasksRouter.post("/", async (req: AuthedRequest, res) => {
       assigneeId: assigneeId ? BigInt(assigneeId as string) : ownerId,
       projectId: projectId ? BigInt(projectId as string) : null,
       priorityGroupId: priorityGroupId ? BigInt(priorityGroupId as string) : null,
-      statusId: statusId ? BigInt(statusId as string) : null,
+      statusId: resolvedStatusId,
       prtyOrdinal: typeof prtyOrdinal === "number" ? prtyOrdinal : null,
       noteId: noteId ? BigInt(noteId as string) : null,
     },

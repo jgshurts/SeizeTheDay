@@ -12,6 +12,8 @@ export interface Status {
   backgroundColor: string | null;
   foregroundColor: string | null;
   description: string | null;
+  ordinal: number;
+  isDefault: boolean;
 }
 
 export interface PriorityGroup {

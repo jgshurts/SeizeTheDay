@@ -1,6 +1,26 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* iOS Safari doesn't reliably honor `overflow: hidden` on body alone --
+   its bounce/rubber-band scrolling can still drag the whole page. Pinning
+   html/body to fixed position removes them from the scrollable flow
+   entirely, which is what actually stops it there. #root fills the space
+   normally and owns the app's real (internal) scrolling via its children. */
+html,
+body {
+  position: fixed;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+}
+
 body {
   margin: 0;
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;

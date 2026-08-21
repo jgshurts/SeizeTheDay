@@ -5,6 +5,7 @@ import { NotesColumn } from "../components/NotesColumn";
 import { SettingsDialog } from "../components/settings/SettingsDialog";
 import { toDateKey } from "../lib/date";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
+import { sortTasks } from "../lib/taskSort";
 import { useIsMobile } from "../lib/useIsMobile";
 import { api } from "../lib/api";
 import type { PriorityGroup, Project, Status, Task } from "../types";
@@ -89,7 +90,7 @@ export function MainPage() {
       noteId: opts?.noteId ?? null,
       projectId: contextProjectId,
     });
-    setTasks((prev) => [...prev, task]);
+    setTasks((prev) => sortTasks([...prev, task]));
     return task;
   }
 
@@ -102,7 +103,9 @@ export function MainPage() {
       if (updated.datePlanned.slice(0, 10) !== activeDate) {
         return prev.filter((t) => t.id !== id);
       }
-      return prev.map((t) => (t.id === id ? updated : t));
+      // Re-sort immediately so editing Sta/PG/PR visibly reorders the grid
+      // instead of waiting for the next fetch to catch up.
+      return sortTasks(prev.map((t) => (t.id === id ? updated : t)));
     });
   }
 
@@ -136,7 +139,7 @@ export function MainPage() {
   );
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50">
+    <div className="flex h-dvh flex-col bg-slate-50">
       <Banner
         activeDate={activeDate}
         onDateChange={setActiveDate}
@@ -166,16 +169,16 @@ export function MainPage() {
             ))}
           </div>
 
-          <main className="flex-1 overflow-hidden p-3">
+          <main className="min-h-0 flex-1 overflow-hidden p-3">
             {mobileTab === "tasks" ? tasksColumn : notesColumn}
           </main>
         </>
       ) : (
         <main
           ref={splitContainerRef}
-          className={`flex flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
+          className={`flex min-h-0 flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
         >
-          <div style={{ width: `${taskColumnWidth}%` }} className="overflow-hidden pr-2">
+          <div style={{ width: `${taskColumnWidth}%` }} className="min-h-0 overflow-hidden pr-2">
             {tasksColumn}
           </div>
 
@@ -187,7 +190,10 @@ export function MainPage() {
             className="w-1 shrink-0 cursor-col-resize self-stretch rounded bg-slate-200 hover:bg-indigo-300 active:bg-indigo-400"
           />
 
-          <div style={{ width: `${100 - taskColumnWidth}%` }} className="overflow-hidden pl-2">
+          <div
+            style={{ width: `${100 - taskColumnWidth}%` }}
+            className="min-h-0 overflow-hidden pl-2"
+          >
             {notesColumn}
           </div>
         </main>

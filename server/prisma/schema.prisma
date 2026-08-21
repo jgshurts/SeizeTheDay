@@ -38,6 +38,8 @@ model Status {
   backgroundColor String? @map("background_color")
   foregroundColor String? @map("foreground_color")
   description     String?
+  ordinal         Int
+  isDefault       Boolean @default(false) @map("is_default")
 
   tasks Task[]
 

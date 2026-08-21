@@ -10,15 +10,19 @@ export interface TaskMove {
 }
 
 interface MoveTasksDialogProps {
+  title: string;
+  emptyMessage: string;
   activeDate: string;
-  unfinishedTasks: Task[];
+  tasks: Task[];
   onMove: (moves: TaskMove[]) => Promise<void>;
   onClose: () => void;
 }
 
 export function MoveTasksDialog({
+  title,
+  emptyMessage,
   activeDate,
-  unfinishedTasks,
+  tasks,
   onMove,
   onClose,
 }: MoveTasksDialogProps) {
@@ -45,7 +49,7 @@ export function MoveTasksDialog({
   async function handleMove() {
     setMoving(true);
     try {
-      await onMove(unfinishedTasks.map((t) => ({ taskId: t.id, date: effectiveDate(t.id) })));
+      await onMove(tasks.map((t) => ({ taskId: t.id, date: effectiveDate(t.id) })));
       onClose();
     } finally {
       setMoving(false);
@@ -53,16 +57,14 @@ export function MoveTasksDialog({
   }
 
   return (
-    <Modal title="Move Unfinished Tasks" onClose={onClose}>
-      {unfinishedTasks.length === 0 ? (
-        <p className="text-sm text-slate-500">
-          There are no unfinished tasks on {formatDisplay(activeDate)} to move.
-        </p>
+    <Modal title={title} onClose={onClose}>
+      {tasks.length === 0 ? (
+        <p className="text-sm text-slate-500">{emptyMessage}</p>
       ) : (
         <>
           <label className="mb-1 block text-sm font-medium text-slate-600" htmlFor="move-date">
-            Move {unfinishedTasks.length} unfinished task
-            {unfinishedTasks.length === 1 ? "" : "s"} from {formatDisplay(activeDate)} to:
+            Move {tasks.length} task
+            {tasks.length === 1 ? "" : "s"} from {formatDisplay(activeDate)} to:
           </label>
           <input
             id="move-date"
@@ -76,7 +78,7 @@ export function MoveTasksDialog({
           </p>
 
           <ul className="mb-4 max-h-64 space-y-1 overflow-y-auto">
-            {unfinishedTasks.map((t) => {
+            {tasks.map((t) => {
               const overridden = t.id in overrides;
               return (
                 <li key={t.id} className="flex items-center gap-2 text-sm">

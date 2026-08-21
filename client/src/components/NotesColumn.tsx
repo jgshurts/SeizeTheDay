@@ -74,7 +74,7 @@ export function NotesColumn({
   }
 
   return (
-    <section className="flex h-full flex-col">
+    <section className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-base font-semibold text-slate-800">Notes</h2>
         <button
@@ -86,7 +86,7 @@ export function NotesColumn({
         </button>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         {notes.map((note) => (
           <div key={note.id} className="rounded border border-yellow-200 bg-yellow-50 p-3">
             <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
@@ -184,6 +184,11 @@ export function NotesColumn({
               onSave={(noteText) => {
                 updateNote(editingNote.id, { noteText });
                 setEditingNoteId(null);
+              }}
+              projects={projects}
+              projectId={editingNote.projectId}
+              onProjectChange={(projectId) => {
+                updateNote(editingNote.id, { projectId });
               }}
             />
           );
