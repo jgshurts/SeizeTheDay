@@ -9,6 +9,7 @@ import type { TaskMove } from "./MoveTasksDialog";
 import { MobileTextEditor } from "./MobileTextEditor";
 import { TaskActionsMenu } from "./TaskActionsMenu";
 import { StatusSelect } from "./StatusSelect";
+import { ProjectFilterSelect } from "./ProjectFilterSelect";
 import { MoveTaskDateDialog } from "./MoveTaskDateDialog";
 import type { PriorityGroup, Project, Status, Task } from "../types";
 
@@ -49,20 +50,30 @@ export function TasksColumn({
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const [projectFilterIds, setProjectFilterIds] = useState<Set<string>>(new Set());
   const selectAllRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
+  const visibleTasks =
+    projectFilterIds.size === 0
+      ? tasks
+      : tasks.filter((t) => t.projectId && projectFilterIds.has(t.projectId));
+
+  const projectFilterKey = [...projectFilterIds].sort().join(",");
+
   // Selection is scoped to whatever's currently on screen -- clear it when
-  // the day changes so it can't silently apply to a different date's tasks.
+  // the day or the project filter changes so it can't silently apply to
+  // rows that are no longer visible (or belong to a different date).
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [activeDate]);
+  }, [activeDate, projectFilterKey]);
 
   useEffect(() => {
     if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = selectedIds.size > 0 && selectedIds.size < tasks.length;
+      selectAllRef.current.indeterminate =
+        selectedIds.size > 0 && selectedIds.size < visibleTasks.length;
     }
-  }, [selectedIds, tasks.length]);
+  }, [selectedIds, visibleTasks.length]);
 
   function startAdding() {
     const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
@@ -100,7 +111,7 @@ export function TasksColumn({
     setAdding(false);
   }
 
-  const unfinishedTasks = tasks.filter((t) => !t.status?.isComplete);
+  const unfinishedTasks = visibleTasks.filter((t) => !t.status?.isComplete);
   const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
 
   async function moveTasks(moves: TaskMove[]) {
@@ -127,21 +138,30 @@ export function TasksColumn({
   }
 
   function toggleSelectAll() {
-    setSelectedIds((prev) => (prev.size === tasks.length ? new Set() : new Set(tasks.map((t) => t.id))));
+    setSelectedIds((prev) =>
+      prev.size === visibleTasks.length ? new Set() : new Set(visibleTasks.map((t) => t.id)),
+    );
   }
 
   return (
     <section className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-base font-semibold text-slate-800">Tasks</h2>
-        <label className="flex items-center gap-2 text-sm text-slate-500">
-          <input
-            type="checkbox"
-            checked={showCompleted}
-            onChange={(e) => onShowCompletedChange(e.target.checked)}
+        <div className="flex items-center gap-3">
+          <ProjectFilterSelect
+            projects={projects}
+            selectedIds={projectFilterIds}
+            onChange={setProjectFilterIds}
           />
-          Show completed
-        </label>
+          <label className="flex items-center gap-2 text-sm text-slate-500">
+            <input
+              type="checkbox"
+              checked={showCompleted}
+              onChange={(e) => onShowCompletedChange(e.target.checked)}
+            />
+            Show completed
+          </label>
+        </div>
       </div>
 
       <div className="mb-2 flex gap-2">
@@ -193,7 +213,7 @@ export function TasksColumn({
                     ref={selectAllRef}
                     type="checkbox"
                     aria-label="Select all tasks"
-                    checked={tasks.length > 0 && selectedIds.size === tasks.length}
+                    checked={visibleTasks.length > 0 && selectedIds.size === visibleTasks.length}
                     onChange={toggleSelectAll}
                   />
                 </th>
@@ -234,7 +254,7 @@ export function TasksColumn({
                 <td />
               </tr>
             )}
-            {tasks.map((task) => (
+            {visibleTasks.map((task) => (
               <tr key={task.id} className="border-t border-slate-100">
                 {!isMobile && (
                   <td className="px-1 py-1 text-center">
