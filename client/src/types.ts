@@ -3,6 +3,17 @@ export interface User {
   firstName: string;
   lastName: string;
   nickname: string;
+  email: string;
+  avatarUrl: string | null;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  htmlLink: string | null;
 }
 
 export interface Status {

@@ -1,41 +1,60 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { User } from "../types";
-import { api, clearToken, setToken } from "../lib/api";
+import { api, clearToken, getToken, setToken } from "../lib/api";
 
 interface AuthContextValue {
   user: User | null;
-  login: (nickname: string, password: string) => Promise<void>;
+  loading: boolean;
+  loginWithGoogle: () => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const USER_KEY = "std_user";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = sessionStorage.getItem(USER_KEY);
-    return stored ? (JSON.parse(stored) as User) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  async function login(nickname: string, password: string) {
-    const { token, user: loggedInUser } = await api.post<{ token: string; user: User }>(
-      "/auth/login",
-      { nickname, password },
-    );
-    setToken(token);
-    sessionStorage.setItem(USER_KEY, JSON.stringify(loggedInUser));
-    setUser(loggedInUser);
+  // On first mount, either pick up a fresh token from the OAuth callback
+  // redirect (?token=...) or rehydrate the session from one already in
+  // sessionStorage, then resolve /auth/me to populate the user.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const redirectToken = params.get("token");
+    if (redirectToken) {
+      setToken(redirectToken);
+      params.delete("token");
+      const rest = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    }
+
+    if (!getToken()) {
+      setLoading(false);
+      return;
+    }
+
+    api
+      .get<User>("/auth/me")
+      .then(setUser)
+      .catch(() => clearToken())
+      .finally(() => setLoading(false));
+  }, []);
+
+  function loginWithGoogle() {
+    window.location.href = "/api/auth/google/start";
   }
 
   function logout() {
     clearToken();
-    sessionStorage.removeItem(USER_KEY);
     setUser(null);
   }
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

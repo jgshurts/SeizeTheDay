@@ -8,11 +8,19 @@ datasource db {
 }
 
 model User {
-  id        BigInt   @id @default(autoincrement())
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  nickname  String   @unique
-  password  String
+  id        BigInt  @id @default(autoincrement())
+  firstName String  @map("first_name")
+  lastName  String  @map("last_name")
+  nickname  String  @unique
+  email     String  @unique
+  googleId  String? @unique @map("google_id")
+  avatarUrl String? @map("avatar_url")
+
+  // Refresh token from Google's OAuth grant, used both to keep the login
+  // session renewable and to read the user's Google Calendar. Nullable so a
+  // user can be pre-provisioned (see users.ts) by email before their first
+  // Google sign-in actually links the account.
+  googleRefreshToken String? @map("google_refresh_token")
 
   ownedTasks    Task[] @relation("TaskOwner")
   assignedTasks Task[] @relation("TaskAssignee")

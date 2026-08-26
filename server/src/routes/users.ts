@@ -1,5 +1,4 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
@@ -8,7 +7,14 @@ import { handlePrismaError } from "../lib/prismaErrors";
 export const usersRouter = Router();
 usersRouter.use(requireAuth);
 
-const userSelect = { id: true, firstName: true, lastName: true, nickname: true } as const;
+const userSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  nickname: true,
+  email: true,
+  avatarUrl: true,
+} as const;
 
 usersRouter.get(
   "/",
@@ -18,29 +24,31 @@ usersRouter.get(
   }),
 );
 
+// Creates a placeholder row by email -- once that person signs in with
+// Google, the callback links their googleId to this row instead of making
+// a duplicate.
 usersRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { firstName, lastName, nickname, password } = req.body as Record<string, unknown>;
+    const { firstName, lastName, nickname, email } = req.body as Record<string, unknown>;
 
     if (
       typeof firstName !== "string" ||
       typeof lastName !== "string" ||
       typeof nickname !== "string" ||
-      typeof password !== "string" ||
+      typeof email !== "string" ||
       !firstName ||
       !lastName ||
       !nickname ||
-      !password
+      !email
     ) {
-      res.status(400).json({ error: "firstName, lastName, nickname, and password are required" });
+      res.status(400).json({ error: "firstName, lastName, nickname, and email are required" });
       return;
     }
 
     try {
-      const passwordHash = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({
-        data: { firstName, lastName, nickname, password: passwordHash },
+        data: { firstName, lastName, nickname, email },
         select: userSelect,
       });
       res.status(201).json(user);
@@ -54,7 +62,7 @@ usersRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
-    const { firstName, lastName, nickname, password } = req.body as Record<string, unknown>;
+    const { firstName, lastName, nickname, email } = req.body as Record<string, unknown>;
 
     try {
       const user = await prisma.user.update({
@@ -63,7 +71,7 @@ usersRouter.patch(
           ...(firstName !== undefined ? { firstName: firstName as string } : {}),
           ...(lastName !== undefined ? { lastName: lastName as string } : {}),
           ...(nickname !== undefined ? { nickname: nickname as string } : {}),
-          ...(password ? { password: await bcrypt.hash(password as string, 10) } : {}),
+          ...(email !== undefined ? { email: email as string } : {}),
         },
         select: userSelect,
       });

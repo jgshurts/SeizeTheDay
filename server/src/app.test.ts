@@ -9,9 +9,17 @@ describe("GET /health", () => {
   });
 });
 
-describe("POST /api/auth/login", () => {
-  it("rejects a request missing credentials", async () => {
-    const res = await request(app).post("/api/auth/login").send({});
-    expect(res.status).toBe(400);
+describe("GET /api/auth/google/start", () => {
+  it("redirects to Google's OAuth consent screen", async () => {
+    const res = await request(app).get("/api/auth/google/start");
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain("accounts.google.com");
+  });
+});
+
+describe("GET /api/auth/me", () => {
+  it("rejects a request with no token", async () => {
+    const res = await request(app).get("/api/auth/me");
+    expect(res.status).toBe(401);
   });
 });

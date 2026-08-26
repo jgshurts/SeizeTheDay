@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Banner } from "../components/Banner";
 import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
+import { ScheduleColumn } from "../components/ScheduleColumn";
 import { SettingsDialog } from "../components/settings/SettingsDialog";
 import { toDateKey } from "../lib/date";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
@@ -16,7 +17,9 @@ const MIN_SPLIT = 20;
 const MAX_SPLIT = 80;
 
 function loadStoredSplit(): number {
-  const stored = Number(localStorage.getItem(SPLIT_STORAGE_KEY));
+  const raw = localStorage.getItem(SPLIT_STORAGE_KEY);
+  if (raw === null) return DEFAULT_SPLIT;
+  const stored = Number(raw);
   if (!Number.isFinite(stored)) return DEFAULT_SPLIT;
   return Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, stored));
 }
@@ -37,7 +40,7 @@ export function MainPage() {
   const splitContainerRef = useRef<HTMLElement>(null);
 
   const isMobile = useIsMobile();
-  const [mobileTab, setMobileTab] = useState<"tasks" | "notes">("tasks");
+  const [mobileTab, setMobileTab] = useState<"tasks" | "schedule" | "notes">("tasks");
 
   useEffect(() => {
     api.get<Status[]>("/statuses").then(setStatuses);
@@ -129,6 +132,20 @@ export function MainPage() {
     />
   );
 
+  const scheduleColumn = <ScheduleColumn activeDate={activeDate} />;
+
+  // The Tasks/Notes split stays user-resizable (see taskColumnWidth above);
+  // Schedule is carved out of the Tasks side at a fixed 60/40 ratio rather
+  // than adding a second draggable divider.
+  const tasksAndSchedule = (
+    <div className="flex h-full min-h-0 gap-2">
+      <div className="min-h-0 w-[60%] overflow-hidden">{tasksColumn}</div>
+      <div className="min-h-0 w-[40%] overflow-hidden border-l border-slate-200 pl-2">
+        {scheduleColumn}
+      </div>
+    </div>
+  );
+
   const notesColumn = (
     <NotesColumn
       activeDate={activeDate}
@@ -153,7 +170,7 @@ export function MainPage() {
       {isMobile ? (
         <>
           <div className="flex border-b border-slate-200 bg-white">
-            {(["tasks", "notes"] as const).map((tab) => (
+            {(["tasks", "schedule", "notes"] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -170,7 +187,9 @@ export function MainPage() {
           </div>
 
           <main className="min-h-0 flex-1 overflow-hidden p-3">
-            {mobileTab === "tasks" ? tasksColumn : notesColumn}
+            {mobileTab === "tasks" && tasksColumn}
+            {mobileTab === "schedule" && scheduleColumn}
+            {mobileTab === "notes" && notesColumn}
           </main>
         </>
       ) : (
@@ -179,7 +198,7 @@ export function MainPage() {
           className={`flex min-h-0 flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
         >
           <div style={{ width: `${taskColumnWidth}%` }} className="min-h-0 overflow-hidden pr-2">
-            {tasksColumn}
+            {tasksAndSchedule}
           </div>
 
           <div

@@ -14,7 +14,8 @@ Built end-to-end — schema, API, and UI — as a full-stack TypeScript project.
 - **Project context** — set a project as the active context to default new tasks/notes into it and filter the day's task list down to just that project.
 - **Move Unfinished Tasks** — bulk-reschedule everything left undone on a given day to another date, with an optional per-task date override for anything that shouldn't just follow the herd.
 - **Keyboard shortcuts** — `Alt/Option+T` (new task), `Alt/Option+N` (new note), `Alt/Option+M` (move unfinished tasks) — chosen deliberately to avoid the browser's own reserved `Ctrl/Cmd` shortcuts.
-- **Auth** — nickname/password login, bcrypt-hashed, JWT-based session that lasts as long as the browser tab is open.
+- **Auth** — "Sign in with Google" (OAuth), JWT-based session that lasts as long as the browser tab is open. The same Google grant also authorizes read access to Calendar, so there's no separate calendar-connection step.
+- **Schedule column** — a read-only view of the active day's Google Calendar events, alongside Tasks and Notes, with an "Add" link that opens Google Calendar's own day view in a new tab for creating events.
 - **Settings** — CRUD management for Statuses, Priority Groups, Projects, and Users, all from one dialog.
 
 ## Tech stack
@@ -59,7 +60,9 @@ npm install
 
 # Configure the database connection
 cp server/.env.example server/.env
-# edit server/.env with your local Postgres connection string and a JWT secret
+# edit server/.env with your local Postgres connection string, a JWT secret,
+# and a Google OAuth client (Cloud Console > APIs & Services > Credentials;
+# enable the Google Calendar API and add the redirect URI from .env.example)
 
 # Create the schema and seed some starter data (statuses, priority groups, a user)
 cd server && npx prisma migrate deploy && cd ..

@@ -3,15 +3,13 @@ import { AuthProvider } from "../context/AuthContext";
 import { LoginPage } from "./LoginPage";
 
 describe("LoginPage", () => {
-  it("renders nickname and password fields", () => {
+  it("renders a Google sign-in button", () => {
     render(
       <AuthProvider>
         <LoginPage />
       </AuthProvider>,
     );
 
-    expect(screen.getByLabelText(/nickname/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign in with google/i })).toBeInTheDocument();
   });
 });

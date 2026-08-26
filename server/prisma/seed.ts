@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -40,15 +39,16 @@ async function main() {
     skipDuplicates: true,
   });
 
-  const passwordHash = await bcrypt.hash("password", 10);
+  // Pre-provision the first user by email; signing in with this Google
+  // account links it on the first login instead of creating a duplicate.
   await prisma.user.upsert({
-    where: { nickname: "jeff" },
+    where: { email: "jgshurts@gmail.com" },
     update: {},
     create: {
       firstName: "Jeff",
       lastName: "Shurts",
       nickname: "jeff",
-      password: passwordHash,
+      email: "jgshurts@gmail.com",
     },
   });
 }

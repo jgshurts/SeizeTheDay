@@ -3,7 +3,8 @@ import { LoginPage } from "./pages/LoginPage";
 import { MainPage } from "./pages/MainPage";
 
 function AppShell() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return null;
   return user ? <MainPage /> : <LoginPage />;
 }
 
