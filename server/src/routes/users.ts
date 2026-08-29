@@ -3,18 +3,10 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { handlePrismaError } from "../lib/prismaErrors";
+import { userSelect } from "../lib/userSelect";
 
 export const usersRouter = Router();
 usersRouter.use(requireAuth);
-
-const userSelect = {
-  id: true,
-  firstName: true,
-  lastName: true,
-  nickname: true,
-  email: true,
-  avatarUrl: true,
-} as const;
 
 usersRouter.get(
   "/",
@@ -79,6 +71,35 @@ usersRouter.patch(
     } catch (err) {
       handlePrismaError(err, res);
     }
+  }),
+);
+
+// Self-service theme update -- distinct from the admin PATCH /:id above,
+// which any authenticated user could otherwise point at any id.
+usersRouter.patch(
+  "/me/theme",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { bannerColor, subBannerColor, backgroundColor, leftImage, rightImage } = req.body as Record<
+      string,
+      unknown
+    >;
+
+    const user = await prisma.user.update({
+      where: { id: BigInt(req.user!.userId) },
+      data: {
+        ...(bannerColor !== undefined ? { themeBannerColor: bannerColor as string | null } : {}),
+        ...(subBannerColor !== undefined
+          ? { themeSubBannerColor: subBannerColor as string | null }
+          : {}),
+        ...(backgroundColor !== undefined
+          ? { themeBackgroundColor: backgroundColor as string | null }
+          : {}),
+        ...(leftImage !== undefined ? { themeLeftImage: leftImage as string | null } : {}),
+        ...(rightImage !== undefined ? { themeRightImage: rightImage as string | null } : {}),
+      },
+      select: userSelect,
+    });
+    res.json(user);
   }),
 );
 

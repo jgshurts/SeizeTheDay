@@ -12,6 +12,13 @@ export function addDays(key: string, delta: number): string {
   return toDateKey(date);
 }
 
+export function formatWeekday(key: string, short = false): string {
+  return fromDateKey(key).toLocaleDateString(undefined, {
+    weekday: short ? "short" : "long",
+    timeZone: "UTC",
+  });
+}
+
 export function formatDisplay(key: string): string {
   return fromDateKey(key).toLocaleDateString(undefined, {
     weekday: "short",

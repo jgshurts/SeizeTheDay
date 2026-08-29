@@ -22,8 +22,18 @@ model User {
   // Google sign-in actually links the account.
   googleRefreshToken String? @map("google_refresh_token")
 
-  ownedTasks    Task[] @relation("TaskOwner")
-  assignedTasks Task[] @relation("TaskAssignee")
+  // Per-user theming (Settings > Theme). Images are stored as data URLs
+  // directly on the row -- small enough for a personal planner's own photos
+  // that it's not worth standing up separate file storage for them.
+  themeBannerColor     String? @map("theme_banner_color")
+  themeSubBannerColor  String? @map("theme_sub_banner_color")
+  themeBackgroundColor String? @map("theme_background_color")
+  themeLeftImage       String? @map("theme_left_image") @db.Text
+  themeRightImage      String? @map("theme_right_image") @db.Text
+
+  ownedTasks       Task[]             @relation("TaskOwner")
+  assignedTasks    Task[]             @relation("TaskAssignee")
+  eventProjectTags EventProjectTag[]
 
   @@map("users")
 }
@@ -43,6 +53,10 @@ model Status {
   id              BigInt  @id @default(autoincrement())
   statusCode      String  @map("status_code") @db.Char(1)
   isComplete      Boolean @default(false) @map("is_complete")
+  // Marks which status means "blocked" -- lets a task's blocker-note UI
+  // (Task.blockerNoteId) key off the status itself rather than guessing
+  // from its name, since statuses are otherwise entirely user-defined.
+  isBlocked       Boolean @default(false) @map("is_blocked")
   backgroundColor String? @map("background_color")
   foregroundColor String? @map("foreground_color")
   description     String?
@@ -58,11 +72,30 @@ model Project {
   id          BigInt  @id @default(autoincrement())
   name        String
   description String?
+  color       String?
 
-  tasks Task[]
-  notes Note[]
+  tasks     Task[]
+  notes     Note[]
+  eventTags EventProjectTag[]
 
   @@map("projects")
+}
+
+// Tags a specific Google Calendar event (identified by its Google event id,
+// scoped per user since two users could see the same event with different
+// ids across calendars) with a Project, purely so the Schedule column can
+// color it -- Google Calendar has no concept of our Projects itself.
+model EventProjectTag {
+  id            BigInt @id @default(autoincrement())
+  userId        BigInt @map("user_id")
+  googleEventId String @map("google_event_id")
+  projectId     BigInt @map("project_id")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, googleEventId])
+  @@map("event_project_tags")
 }
 
 model Task {
@@ -72,7 +105,9 @@ model Task {
   assigneeId      BigInt    @map("assignee_id")
   priorityGroupId BigInt?   @map("priority_group_id")
   statusId        BigInt?   @map("status_id")
-  noteId          BigInt?   @map("note_id")
+  // The "known place" for what's blocking a Blocked task and who owns
+  // clearing it, set explicitly rather than inferred from status.
+  blockerNoteId   BigInt?   @map("blocker_note_id")
   prtyOrdinal     Int?      @map("prty_ordinal")
   description     String
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -84,7 +119,7 @@ model Task {
   assignee      User           @relation("TaskAssignee", fields: [assigneeId], references: [id])
   priorityGroup PriorityGroup? @relation(fields: [priorityGroupId], references: [id])
   status        Status?        @relation(fields: [statusId], references: [id])
-  note          Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  blockerNote   Note?          @relation("TaskBlockerNote", fields: [blockerNoteId], references: [id], onDelete: SetNull)
 
   @@map("tasks")
 }
@@ -97,8 +132,8 @@ model Note {
   createdAt   DateTime @default(now()) @map("created_at")
   contextDate DateTime @map("context_date") @db.Date
 
-  project Project? @relation(fields: [projectId], references: [id])
-  tasks   Task[]
+  project      Project? @relation(fields: [projectId], references: [id])
+  blockedTasks Task[]   @relation("TaskBlockerNote")
 
   @@map("notes")
 }

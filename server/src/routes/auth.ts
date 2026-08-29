@@ -4,6 +4,7 @@ import { signToken } from "../lib/auth";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { exchangeCodeForProfile, getGoogleAuthUrl } from "../lib/googleAuth";
+import { userSelect } from "../lib/userSelect";
 
 const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:5174";
 
@@ -59,16 +60,12 @@ authRouter.get(
 );
 
 authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
-  const user = await prisma.user.findUnique({ where: { id: BigInt(req.user!.userId) } });
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(req.user!.userId) },
+    select: userSelect,
+  });
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
-  res.json({
-    id: user.id,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    nickname: user.nickname,
-    email: user.email,
-    avatarUrl: user.avatarUrl,
-  });
+  res.json(user);
 });

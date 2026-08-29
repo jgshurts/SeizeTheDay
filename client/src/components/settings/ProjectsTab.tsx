@@ -3,10 +3,13 @@ import { Trash2 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
 import type { Project } from "../../types";
 
+const DEFAULT_COLOR = "#94a3b8"; // slate-400
+
 export function ProjectsTab() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const [draftColor, setDraftColor] = useState(DEFAULT_COLOR);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,10 +22,12 @@ export function ProjectsTab() {
       const project = await api.post<Project>("/projects", {
         name: draftName,
         description: draftDescription || null,
+        color: draftColor,
       });
       setProjects((prev) => [...prev, project].sort((a, b) => a.name.localeCompare(b.name)));
       setDraftName("");
       setDraftDescription("");
+      setDraftColor(DEFAULT_COLOR);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to add project");
     }
@@ -56,6 +61,7 @@ export function ProjectsTab() {
           <tr>
             <th className="w-40 px-2 py-1">Name</th>
             <th className="px-2 py-1">Description</th>
+            <th className="w-16 px-2 py-1">Color</th>
             <th className="w-8 px-2 py-1" />
           </tr>
         </thead>
@@ -74,6 +80,14 @@ export function ProjectsTab() {
                   defaultValue={p.description ?? ""}
                   onBlur={(e) => updateProject(p.id, { description: e.target.value || null })}
                   className="w-full rounded border border-slate-200 px-1"
+                />
+              </td>
+              <td className="px-2 py-1">
+                <input
+                  type="color"
+                  value={p.color ?? DEFAULT_COLOR}
+                  onChange={(e) => updateProject(p.id, { color: e.target.value })}
+                  className="h-7 w-full rounded border border-slate-200"
                 />
               </td>
               <td className="px-2 py-1 text-right">
@@ -101,6 +115,14 @@ export function ProjectsTab() {
                 value={draftDescription}
                 onChange={(e) => setDraftDescription(e.target.value)}
                 className="w-full rounded border border-slate-300 px-1"
+              />
+            </td>
+            <td className="px-2 py-1">
+              <input
+                type="color"
+                value={draftColor}
+                onChange={(e) => setDraftColor(e.target.value)}
+                className="h-7 w-full rounded border border-slate-300"
               />
             </td>
             <td className="px-2 py-1" />

@@ -4,14 +4,16 @@ import { StatusesTab } from "./StatusesTab";
 import { PriorityGroupsTab } from "./PriorityGroupsTab";
 import { UsersTab } from "./UsersTab";
 import { ProjectsTab } from "./ProjectsTab";
+import { ThemeTab } from "./ThemeTab";
 
-type Tab = "projects" | "statuses" | "priorityGroups" | "users";
+type Tab = "projects" | "statuses" | "priorityGroups" | "users" | "theme";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "projects", label: "Projects" },
   { id: "statuses", label: "Statuses" },
   { id: "priorityGroups", label: "Priority Groups" },
   { id: "users", label: "Users" },
+  { id: "theme", label: "Theme" },
 ];
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
@@ -40,6 +42,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       {tab === "statuses" && <StatusesTab />}
       {tab === "priorityGroups" && <PriorityGroupsTab />}
       {tab === "users" && <UsersTab />}
+      {tab === "theme" && <ThemeTab />}
     </Modal>
   );
 }

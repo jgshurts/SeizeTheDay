@@ -18,7 +18,7 @@ projectsRouter.get(
 projectsRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { name, description } = req.body as Record<string, unknown>;
+    const { name, description, color } = req.body as Record<string, unknown>;
 
     if (typeof name !== "string" || !name) {
       res.status(400).json({ error: "name is required" });
@@ -27,7 +27,11 @@ projectsRouter.post(
 
     try {
       const project = await prisma.project.create({
-        data: { name, description: (description as string | undefined) ?? null },
+        data: {
+          name,
+          description: (description as string | undefined) ?? null,
+          color: (color as string | undefined) ?? null,
+        },
       });
       res.status(201).json(project);
     } catch (err) {
@@ -40,7 +44,7 @@ projectsRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
-    const { name, description } = req.body as Record<string, unknown>;
+    const { name, description, color } = req.body as Record<string, unknown>;
 
     try {
       const project = await prisma.project.update({
@@ -48,6 +52,7 @@ projectsRouter.patch(
         data: {
           ...(name !== undefined ? { name: name as string } : {}),
           ...(description !== undefined ? { description: description as string | null } : {}),
+          ...(color !== undefined ? { color: color as string | null } : {}),
         },
       });
       res.json(project);

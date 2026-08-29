@@ -1,23 +1,22 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
+import { defaultMoveDate } from "../lib/moveDate";
+import { confirmMoveIfComplete } from "../lib/confirmMove";
+import type { Task } from "../types";
 
 interface MoveTaskDateDialogProps {
-  taskDescription: string;
-  currentDate: string;
+  task: Task;
   onMove: (date: string) => Promise<void>;
   onClose: () => void;
 }
 
-export function MoveTaskDateDialog({
-  taskDescription,
-  currentDate,
-  onMove,
-  onClose,
-}: MoveTaskDateDialogProps) {
-  const [date, setDate] = useState(currentDate);
+export function MoveTaskDateDialog({ task, onMove, onClose }: MoveTaskDateDialogProps) {
+  const currentDate = task.datePlanned.slice(0, 10);
+  const [date, setDate] = useState(() => defaultMoveDate(currentDate));
   const [moving, setMoving] = useState(false);
 
   async function handleMove() {
+    if (!confirmMoveIfComplete([task])) return;
     setMoving(true);
     try {
       await onMove(date);
@@ -29,7 +28,7 @@ export function MoveTaskDateDialog({
 
   return (
     <Modal title="Move Task" onClose={onClose}>
-      <p className="mb-3 truncate text-sm text-slate-600">{taskDescription}</p>
+      <p className="mb-3 truncate text-sm text-slate-600">{task.description}</p>
 
       <label className="mb-1 block text-sm font-medium text-slate-600" htmlFor="move-task-date">
         New date

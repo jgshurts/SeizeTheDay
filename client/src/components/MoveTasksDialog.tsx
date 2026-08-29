@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Modal } from "./Modal";
-import { addDays, formatDisplay } from "../lib/date";
+import { formatDisplay } from "../lib/date";
+import { defaultMoveDate } from "../lib/moveDate";
+import { confirmMoveIfComplete } from "../lib/confirmMove";
 import type { Task } from "../types";
 
 export interface TaskMove {
@@ -26,7 +28,7 @@ export function MoveTasksDialog({
   onMove,
   onClose,
 }: MoveTasksDialogProps) {
-  const [globalDate, setGlobalDate] = useState(() => addDays(activeDate, 1));
+  const [globalDate, setGlobalDate] = useState(() => defaultMoveDate(activeDate));
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [moving, setMoving] = useState(false);
 
@@ -47,6 +49,7 @@ export function MoveTasksDialog({
   }
 
   async function handleMove() {
+    if (!confirmMoveIfComplete(tasks)) return;
     setMoving(true);
     try {
       await onMove(tasks.map((t) => ({ taskId: t.id, date: effectiveDate(t.id) })));

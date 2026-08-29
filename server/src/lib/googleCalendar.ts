@@ -8,6 +8,9 @@ export interface CalendarEvent {
   end: string;
   allDay: boolean;
   htmlLink: string | null;
+  // Always null here -- Google has no concept of our Projects. The route
+  // fills this in from EventProjectTag after fetching.
+  projectId: string | null;
 }
 
 // No access token is persisted -- each read hands the stored refresh token
@@ -43,6 +46,7 @@ export async function getEventsForDate(
       end: (event.end?.dateTime ?? event.end?.date ?? "") as string,
       allDay,
       htmlLink: event.htmlLink ?? null,
+      projectId: null,
     };
   });
 }

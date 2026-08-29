@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { Banner } from "../components/Banner";
 import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
@@ -9,7 +10,21 @@ import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { sortTasks } from "../lib/taskSort";
 import { useIsMobile } from "../lib/useIsMobile";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
+import { withAlpha } from "../lib/color";
 import type { PriorityGroup, Project, Status, Task } from "../types";
+
+// Fades a panel's background image out under a translucent white veil so
+// text stays readable on top of it, in one background-image declaration
+// instead of a separate overlay element.
+function panelBackgroundStyle(imageUrl: string | null | undefined): CSSProperties {
+  if (!imageUrl) return {};
+  return {
+    backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.85), rgba(248, 250, 252, 0.85)), url(${imageUrl})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+  };
+}
 
 const SPLIT_STORAGE_KEY = "std_task_column_width";
 const DEFAULT_SPLIT = 50;
@@ -24,7 +39,14 @@ function loadStoredSplit(): number {
   return Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, stored));
 }
 
+const CONTEXT_PROJECT_STORAGE_KEY = "std_context_project_id";
+
+function loadStoredContextProjectId(): string | null {
+  return localStorage.getItem(CONTEXT_PROJECT_STORAGE_KEY);
+}
+
 export function MainPage() {
+  const { user } = useAuth();
   const [activeDate, setActiveDate] = useState(() => toDateKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -33,7 +55,7 @@ export function MainPage() {
   const [priorityGroups, setPriorityGroups] = useState<PriorityGroup[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCompleted, setShowCompleted] = useState(true);
-  const [contextProjectId, setContextProjectId] = useState<string | null>(null);
+  const [contextProjectId, setContextProjectId] = useState(loadStoredContextProjectId);
 
   const [taskColumnWidth, setTaskColumnWidth] = useState(loadStoredSplit);
   const [isDraggingSplit, setIsDraggingSplit] = useState(false);
@@ -47,6 +69,16 @@ export function MainPage() {
     api.get<PriorityGroup[]>("/priority-groups").then(setPriorityGroups);
     api.get<Project[]>("/projects").then(setProjects);
   }, []);
+
+  // Persisted so the Banner's project filter survives a refresh, the same
+  // way the Tasks/Notes split width already does.
+  useEffect(() => {
+    if (contextProjectId) {
+      localStorage.setItem(CONTEXT_PROJECT_STORAGE_KEY, contextProjectId);
+    } else {
+      localStorage.removeItem(CONTEXT_PROJECT_STORAGE_KEY);
+    }
+  }, [contextProjectId]);
 
   useEffect(() => {
     const projectParam = contextProjectId ? `&projectId=${contextProjectId}` : "";
@@ -83,15 +115,14 @@ export function MainPage() {
     };
   }, [isDraggingSplit]);
 
-  async function addTask(description: string, opts?: { noteId?: string }) {
+  async function addTask(description: string, opts?: { projectId?: string | null }) {
     const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
     const task = await api.post<Task>("/tasks", {
       description,
       datePlanned: activeDate,
       priorityGroupId,
       prtyOrdinal,
-      noteId: opts?.noteId ?? null,
-      projectId: contextProjectId,
+      projectId: opts?.projectId !== undefined ? opts.projectId : contextProjectId,
     });
     setTasks((prev) => sortTasks([...prev, task]));
     return task;
@@ -126,21 +157,29 @@ export function MainPage() {
       projects={projects}
       showCompleted={showCompleted}
       onShowCompletedChange={setShowCompleted}
-      onAddTask={(description) => addTask(description)}
+      onAddTask={(description, projectId) => addTask(description, { projectId })}
       onUpdateTask={updateTask}
       onDeleteTask={deleteTask}
+      subBannerColor={user?.themeSubBannerColor}
     />
   );
 
-  const scheduleColumn = <ScheduleColumn activeDate={activeDate} />;
+  const scheduleColumn = (
+    <ScheduleColumn
+      activeDate={activeDate}
+      projects={projects}
+      subBannerColor={user?.themeSubBannerColor}
+    />
+  );
 
   // The Tasks/Notes split stays user-resizable (see taskColumnWidth above);
-  // Schedule is carved out of the Tasks side at a fixed 60/40 ratio rather
-  // than adding a second draggable divider.
+  // Schedule is carved out of the Tasks side at a fixed 70/30 ratio rather
+  // than adding a second draggable divider -- meeting titles are short, so
+  // Schedule doesn't need as much width as the Tasks grid does.
   const tasksAndSchedule = (
     <div className="flex h-full min-h-0 gap-2">
-      <div className="min-h-0 w-[60%] overflow-hidden">{tasksColumn}</div>
-      <div className="min-h-0 w-[40%] overflow-hidden border-l border-slate-200 pl-2">
+      <div className="min-h-0 w-[70%] overflow-hidden">{tasksColumn}</div>
+      <div className="min-h-0 w-[30%] overflow-hidden border-l border-slate-200 pl-2">
         {scheduleColumn}
       </div>
     </div>
@@ -151,12 +190,23 @@ export function MainPage() {
       activeDate={activeDate}
       projects={projects}
       contextProjectId={contextProjectId}
-      onAddRelatedTask={addTask}
+      subBannerColor={user?.themeSubBannerColor}
     />
   );
 
+  // Selecting a project in the Banner tints the whole app with that
+  // project's color, taking over from the user's theme background color
+  // while it's active -- a strong visual cue for which project is in focus.
+  const contextProjectColor = projects.find((p) => p.id === contextProjectId)?.color;
+  const backgroundColor = contextProjectColor
+    ? withAlpha(contextProjectColor, "33")
+    : user?.themeBackgroundColor;
+
   return (
-    <div className="flex h-dvh flex-col bg-slate-50">
+    <div
+      className="flex h-dvh flex-col bg-slate-50"
+      style={backgroundColor ? { backgroundColor } : undefined}
+    >
       <Banner
         activeDate={activeDate}
         onDateChange={setActiveDate}
@@ -186,7 +236,12 @@ export function MainPage() {
             ))}
           </div>
 
-          <main className="min-h-0 flex-1 overflow-hidden p-3">
+          <main
+            className="min-h-0 flex-1 overflow-hidden p-3"
+            style={panelBackgroundStyle(
+              mobileTab === "notes" ? user?.themeRightImage : user?.themeLeftImage,
+            )}
+          >
             {mobileTab === "tasks" && tasksColumn}
             {mobileTab === "schedule" && scheduleColumn}
             {mobileTab === "notes" && notesColumn}
@@ -197,7 +252,10 @@ export function MainPage() {
           ref={splitContainerRef}
           className={`flex min-h-0 flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
         >
-          <div style={{ width: `${taskColumnWidth}%` }} className="min-h-0 overflow-hidden pr-2">
+          <div
+            style={{ width: `${taskColumnWidth}%`, ...panelBackgroundStyle(user?.themeLeftImage) }}
+            className="min-h-0 overflow-hidden pr-2"
+          >
             {tasksAndSchedule}
           </div>
 
@@ -210,7 +268,10 @@ export function MainPage() {
           />
 
           <div
-            style={{ width: `${100 - taskColumnWidth}%` }}
+            style={{
+              width: `${100 - taskColumnWidth}%`,
+              ...panelBackgroundStyle(user?.themeRightImage),
+            }}
             className="min-h-0 overflow-hidden pl-2"
           >
             {notesColumn}

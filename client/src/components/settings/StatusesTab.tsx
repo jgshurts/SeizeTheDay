@@ -10,6 +10,7 @@ export function StatusesTab() {
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [draftCode, setDraftCode] = useState("");
   const [draftComplete, setDraftComplete] = useState(false);
+  const [draftBlocked, setDraftBlocked] = useState(false);
   const [draftDescription, setDraftDescription] = useState("");
   const [draftBackground, setDraftBackground] = useState(DEFAULT_BG);
   const [draftForeground, setDraftForeground] = useState(DEFAULT_FG);
@@ -27,6 +28,7 @@ export function StatusesTab() {
         statusCode: draftCode,
         ordinal: statuses.length + 1,
         isComplete: draftComplete,
+        isBlocked: draftBlocked,
         description: draftDescription || null,
         backgroundColor: draftBackground,
         foregroundColor: draftForeground,
@@ -34,6 +36,7 @@ export function StatusesTab() {
       setStatuses((prev) => [...prev, status].sort((a, b) => a.ordinal - b.ordinal));
       setDraftCode("");
       setDraftComplete(false);
+      setDraftBlocked(false);
       setDraftDescription("");
       setDraftBackground(DEFAULT_BG);
       setDraftForeground(DEFAULT_FG);
@@ -118,6 +121,7 @@ export function StatusesTab() {
             <th className="w-16 px-2 py-1">Code</th>
             <th className="w-16 px-2 py-1">Default?</th>
             <th className="px-2 py-1">Complete?</th>
+            <th className="px-2 py-1">Blocked?</th>
             <th className="px-2 py-1">Description</th>
             <th className="w-16 px-2 py-1">Bg</th>
             <th className="w-16 px-2 py-1">Fg</th>
@@ -159,6 +163,13 @@ export function StatusesTab() {
                   type="checkbox"
                   checked={s.isComplete}
                   onChange={(e) => updateStatus(s.id, { isComplete: e.target.checked })}
+                />
+              </td>
+              <td className="px-2 py-1">
+                <input
+                  type="checkbox"
+                  checked={s.isBlocked}
+                  onChange={(e) => updateStatus(s.id, { isBlocked: e.target.checked })}
                 />
               </td>
               <td className="px-2 py-1">
@@ -212,6 +223,13 @@ export function StatusesTab() {
                 type="checkbox"
                 checked={draftComplete}
                 onChange={(e) => setDraftComplete(e.target.checked)}
+              />
+            </td>
+            <td className="px-2 py-1">
+              <input
+                type="checkbox"
+                checked={draftBlocked}
+                onChange={(e) => setDraftBlocked(e.target.checked)}
               />
             </td>
             <td className="px-2 py-1">

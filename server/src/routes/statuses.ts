@@ -18,8 +18,16 @@ statusesRouter.get(
 statusesRouter.post(
   "/",
   asyncHandler(async (req, res) => {
-    const { statusCode, isComplete, backgroundColor, foregroundColor, description, ordinal, isDefault } =
-      req.body as Record<string, unknown>;
+    const {
+      statusCode,
+      isComplete,
+      isBlocked,
+      backgroundColor,
+      foregroundColor,
+      description,
+      ordinal,
+      isDefault,
+    } = req.body as Record<string, unknown>;
 
     if (typeof statusCode !== "string" || !statusCode || typeof ordinal !== "number") {
       res.status(400).json({ error: "statusCode and ordinal (number) are required" });
@@ -37,6 +45,7 @@ statusesRouter.post(
           data: {
             statusCode,
             isComplete: Boolean(isComplete),
+            isBlocked: Boolean(isBlocked),
             backgroundColor: (backgroundColor as string | undefined) ?? null,
             foregroundColor: (foregroundColor as string | undefined) ?? null,
             description: (description as string | undefined) ?? null,
@@ -56,8 +65,16 @@ statusesRouter.patch(
   "/:id",
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
-    const { statusCode, isComplete, backgroundColor, foregroundColor, description, ordinal, isDefault } =
-      req.body as Record<string, unknown>;
+    const {
+      statusCode,
+      isComplete,
+      isBlocked,
+      backgroundColor,
+      foregroundColor,
+      description,
+      ordinal,
+      isDefault,
+    } = req.body as Record<string, unknown>;
 
     try {
       const status = await prisma.$transaction(async (tx) => {
@@ -69,6 +86,7 @@ statusesRouter.patch(
           data: {
             ...(statusCode !== undefined ? { statusCode: statusCode as string } : {}),
             ...(isComplete !== undefined ? { isComplete: Boolean(isComplete) } : {}),
+            ...(isBlocked !== undefined ? { isBlocked: Boolean(isBlocked) } : {}),
             ...(backgroundColor !== undefined
               ? { backgroundColor: backgroundColor as string | null }
               : {}),

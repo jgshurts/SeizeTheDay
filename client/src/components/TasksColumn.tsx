@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import Markdown from "react-markdown";
-import { ArrowLeftRight, Plus, StickyNote, Trash2 } from "lucide-react";
+import { ArrowLeftRight, ListTodo, OctagonAlert, Trash2 } from "lucide-react";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { useIsMobile } from "../lib/useIsMobile";
-import { formatDisplay } from "../lib/date";
+import { addDays, formatDisplay } from "../lib/date";
+import { api } from "../lib/api";
 import { MoveTasksDialog } from "./MoveTasksDialog";
 import type { TaskMove } from "./MoveTasksDialog";
 import { MobileTextEditor } from "./MobileTextEditor";
 import { TaskActionsMenu } from "./TaskActionsMenu";
 import { StatusSelect } from "./StatusSelect";
-import { ProjectFilterSelect } from "./ProjectFilterSelect";
 import { MoveTaskDateDialog } from "./MoveTaskDateDialog";
-import type { PriorityGroup, Project, Status, Task } from "../types";
+import { NoteRefText } from "./NoteRefText";
+import { NoteRefBadge } from "./NoteRefBadge";
+import { ColumnHeader, ADD_BUTTON_CLASS } from "./ColumnHeader";
+import { withAlpha } from "../lib/color";
+import { confirmMoveIfComplete } from "../lib/confirmMove";
+import type { Note, PriorityGroup, Project, Status, Task } from "../types";
 
 interface TasksColumnProps {
   activeDate: string;
@@ -21,12 +25,86 @@ interface TasksColumnProps {
   projects: Project[];
   showCompleted: boolean;
   onShowCompletedChange: (value: boolean) => void;
-  onAddTask: (description: string) => Promise<Task>;
+  onAddTask: (description: string, projectId?: string | null) => Promise<Task>;
   onUpdateTask: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
+  subBannerColor: string | null | undefined;
 }
 
 const NONE = "";
+
+interface BlockerNoteCellProps {
+  task: Task;
+  onUpdateTask: (id: string, patch: Record<string, unknown>) => Promise<void>;
+}
+
+// Shown only while a task's current status is flagged "blocked" (Settings >
+// Statuses) -- a known, dedicated place to attach the note explaining what's
+// blocking it and who's clearing it.
+function BlockerNoteCell({ task, onUpdateTask }: BlockerNoteCellProps) {
+  const [editing, setEditing] = useState(false);
+  const [refInput, setRefInput] = useState("");
+  const [error, setError] = useState(false);
+
+  if (!task.status?.isBlocked) return null;
+
+  async function attach() {
+    const ref = refInput.trim().replace(/^@/, "");
+    if (!ref) {
+      setEditing(false);
+      return;
+    }
+    try {
+      const note = await api.get<Note>(`/notes/by-ref/${encodeURIComponent(ref)}`);
+      await onUpdateTask(task.id, { blockerNoteId: note.id });
+      setEditing(false);
+      setRefInput("");
+      setError(false);
+    } catch {
+      setError(true);
+    }
+  }
+
+  if (task.blockerNote) {
+    return (
+      <span
+        className="flex items-center justify-center"
+        title="Right-click to remove"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onUpdateTask(task.id, { blockerNoteId: null });
+        }}
+      >
+        {task.blockerNote.shortRef && <NoteRefBadge shortRef={task.blockerNote.shortRef} />}
+      </span>
+    );
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={refInput}
+        onChange={(e) => setRefInput(e.target.value)}
+        onBlur={attach}
+        onKeyDown={(e) => e.key === "Enter" && attach()}
+        placeholder="REF"
+        className={`w-12 rounded border px-1 text-[11px] ${error ? "border-red-400" : "border-slate-300"}`}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      title="Attach blocker note"
+      className="text-red-500 hover:text-red-700"
+    >
+      <OctagonAlert size={13} />
+    </button>
+  );
+}
 
 export function TasksColumn({
   activeDate,
@@ -39,6 +117,7 @@ export function TasksColumn({
   onAddTask,
   onUpdateTask,
   onDeleteTask,
+  subBannerColor,
 }: TasksColumnProps) {
   const [newDescription, setNewDescription] = useState("");
   const [adding, setAdding] = useState(false);
@@ -50,23 +129,17 @@ export function TasksColumn({
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
-  const [projectFilterIds, setProjectFilterIds] = useState<Set<string>>(new Set());
   const selectAllRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
-  const visibleTasks =
-    projectFilterIds.size === 0
-      ? tasks
-      : tasks.filter((t) => t.projectId && projectFilterIds.has(t.projectId));
-
-  const projectFilterKey = [...projectFilterIds].sort().join(",");
+  const visibleTasks = tasks;
 
   // Selection is scoped to whatever's currently on screen -- clear it when
-  // the day or the project filter changes so it can't silently apply to
-  // rows that are no longer visible (or belong to a different date).
+  // the day changes so it can't silently apply to rows that are no longer
+  // visible (tasks are already scoped to the Banner's project filter).
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [activeDate, projectFilterKey]);
+  }, [activeDate]);
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -85,9 +158,17 @@ export function TasksColumn({
   // Ctrl/Cmd+T is reserved by the browser (new tab), so we use Alt/Option
   // instead -- the only reliable shortcuts a page can actually receive.
   // Checking e.code (not e.key) sidesteps the special characters macOS
-  // produces for Option+letter combos.
+  // produces for Option+letter combos. Shift+Cmd/Ctrl+T for "move to
+  // tomorrow" is a deliberate exception -- it's what was asked for, though
+  // note Chrome/Safari also bind it to "reopen closed tab" and may not let
+  // a page intercept it at all.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (e.shiftKey && (e.metaKey || e.ctrlKey) && e.code === "KeyT") {
+        e.preventDefault();
+        moveSelectedToTomorrow();
+        return;
+      }
       if (!e.altKey) return;
       if (e.code === "KeyT") {
         e.preventDefault();
@@ -99,7 +180,7 @@ export function TasksColumn({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [tasks, priorityGroups]);
+  }, [tasks, priorityGroups, selectedIds, activeDate]);
 
   async function submitNewTask() {
     if (!newDescription.trim()) {
@@ -125,6 +206,19 @@ export function TasksColumn({
     setSelectedIds(new Set());
   }
 
+  async function moveTaskToTomorrow(task: Task) {
+    if (!confirmMoveIfComplete([task])) return;
+    await onUpdateTask(task.id, { datePlanned: addDays(activeDate, 1) });
+  }
+
+  async function moveSelectedToTomorrow() {
+    if (selectedTasks.length === 0) return;
+    if (!confirmMoveIfComplete(selectedTasks)) return;
+    const tomorrow = addDays(activeDate, 1);
+    await moveTasks(selectedTasks.map((t) => ({ taskId: t.id, date: tomorrow })));
+    setSelectedIds(new Set());
+  }
+
   function toggleSelect(taskId: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -145,33 +239,21 @@ export function TasksColumn({
 
   return (
     <section className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-800">Tasks</h2>
-        <div className="flex items-center gap-3">
-          <ProjectFilterSelect
-            projects={projects}
-            selectedIds={projectFilterIds}
-            onChange={setProjectFilterIds}
-          />
-          <label className="flex items-center gap-2 text-sm text-slate-500">
-            <input
-              type="checkbox"
-              checked={showCompleted}
-              onChange={(e) => onShowCompletedChange(e.target.checked)}
-            />
-            Show completed
-          </label>
-        </div>
-      </div>
-
-      <div className="mb-2 flex gap-2">
-        <button
-          type="button"
-          onClick={startAdding}
-          className="flex w-fit items-center gap-1 rounded bg-indigo-600 px-2 py-1 text-sm text-white hover:bg-indigo-700"
-        >
-          <Plus size={16} /> New task
+      <ColumnHeader label="Tasks" color={subBannerColor}>
+        <button type="button" onClick={startAdding} className={ADD_BUTTON_CLASS}>
+          <ListTodo size={16} /> New Task
         </button>
+      </ColumnHeader>
+
+      <div className="mb-2 flex items-center justify-between px-1">
+        <label className="flex items-center gap-2 text-sm text-slate-500">
+          <input
+            type="checkbox"
+            checked={showCompleted}
+            onChange={(e) => onShowCompletedChange(e.target.checked)}
+          />
+          Show completed
+        </label>
         <button
           type="button"
           onClick={() => setMoveDialogTarget("unfinished")}
@@ -191,6 +273,7 @@ export function TasksColumn({
             onToggle={() => setBulkMenuOpen((prev) => !prev)}
             onClose={() => setBulkMenuOpen(false)}
             onMoveToDate={() => setMoveDialogTarget("selected")}
+            onMoveToTomorrow={moveSelectedToTomorrow}
             onDelete={bulkDelete}
           />
           <button
@@ -223,7 +306,7 @@ export function TasksColumn({
               <th className="w-[44px] px-1 py-1 text-center">PR</th>
               {!isMobile && <th className="w-20 px-1 py-1 text-center">PJ</th>}
               <th className="px-2 py-1">Description</th>
-              {!isMobile && <th className="w-10 px-2 py-1 text-center">Note</th>}
+              {!isMobile && <th className="w-9 px-1 py-1 text-center">Blocker</th>}
               <th className="w-8 px-2 py-1" />
             </tr>
           </thead>
@@ -255,7 +338,15 @@ export function TasksColumn({
               </tr>
             )}
             {visibleTasks.map((task) => (
-              <tr key={task.id} className="border-t border-slate-100">
+              <tr
+                key={task.id}
+                className="border-t border-slate-100"
+                style={
+                  task.project?.color
+                    ? { backgroundColor: withAlpha(task.project.color, "1a") }
+                    : undefined
+                }
+              >
                 {!isMobile && (
                   <td className="px-1 py-1 text-center">
                     <input
@@ -356,9 +447,9 @@ export function TasksColumn({
                     <div className="group relative">
                       <div
                         onClick={() => setEditingDescriptionId(task.id)}
-                        className="cursor-text truncate rounded border border-transparent px-1 py-1 hover:border-slate-200"
+                        className="cursor-text truncate rounded border border-transparent px-1 py-1 text-slate-800 hover:border-slate-200"
                       >
-                        {task.description}
+                        <NoteRefText text={task.description} />
                       </div>
                       {!isMobile && (
                         <div
@@ -372,24 +463,8 @@ export function TasksColumn({
                   )}
                 </td>
                 {!isMobile && (
-                  <td className="px-2 py-1 text-center">
-                    {task.note && (
-                      <span className="group relative inline-flex text-amber-500">
-                        <StickyNote size={14} />
-                        <div
-                          role="tooltip"
-                          className="pointer-events-none invisible absolute right-0 top-full z-20 mt-1 w-64 rounded bg-slate-800 px-2 py-1.5 text-left normal-case text-slate-100 opacity-0 shadow-lg transition-opacity duration-100 group-hover:visible group-hover:opacity-100"
-                        >
-                          {task.note.noteText ? (
-                            <div className="prose prose-invert prose-sm max-w-none [&>*]:my-0.5">
-                              <Markdown>{task.note.noteText}</Markdown>
-                            </div>
-                          ) : (
-                            <span className="text-xs italic text-slate-400">No note text</span>
-                          )}
-                        </div>
-                      </span>
-                    )}
+                  <td className="px-1 py-1 text-center">
+                    <BlockerNoteCell task={task} onUpdateTask={onUpdateTask} />
                   </td>
                 )}
                 <td className="px-2 py-1 text-right">
@@ -403,15 +478,26 @@ export function TasksColumn({
                       <Trash2 size={16} />
                     </button>
                   ) : (
-                    <TaskActionsMenu
-                      open={openActionsMenuId === task.id}
-                      onToggle={() =>
-                        setOpenActionsMenuId((prev) => (prev === task.id ? null : task.id))
-                      }
-                      onClose={() => setOpenActionsMenuId(null)}
-                      onMoveToDate={() => setMovingTaskId(task.id)}
-                      onDelete={() => onDeleteTask(task.id)}
-                    />
+                    (() => {
+                      const inMultiSelect = selectedIds.size > 1 && selectedIds.has(task.id);
+                      return (
+                        <TaskActionsMenu
+                          open={openActionsMenuId === task.id}
+                          onToggle={() =>
+                            setOpenActionsMenuId((prev) => (prev === task.id ? null : task.id))
+                          }
+                          onClose={() => setOpenActionsMenuId(null)}
+                          onMoveToDate={() =>
+                            inMultiSelect ? setMoveDialogTarget("selected") : setMovingTaskId(task.id)
+                          }
+                          onMoveToTomorrow={() =>
+                            inMultiSelect ? moveSelectedToTomorrow() : moveTaskToTomorrow(task)
+                          }
+                          onDelete={() => (inMultiSelect ? bulkDelete() : onDeleteTask(task.id))}
+                          selectionCount={inMultiSelect ? selectedIds.size : undefined}
+                        />
+                      );
+                    })()
                   )}
                 </td>
               </tr>
@@ -443,8 +529,7 @@ export function TasksColumn({
         if (!movingTask) return null;
         return (
           <MoveTaskDateDialog
-            taskDescription={movingTask.description}
-            currentDate={movingTask.datePlanned.slice(0, 10)}
+            task={movingTask}
             onMove={(date) => onUpdateTask(movingTask.id, { datePlanned: date })}
             onClose={() => setMovingTaskId(null)}
           />

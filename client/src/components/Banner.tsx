@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { addDays } from "../lib/date";
+import { addDays, formatWeekday } from "../lib/date";
+import { readableTextColor } from "../lib/color";
 import type { Project } from "../types";
 
 const NONE = "";
@@ -25,16 +26,25 @@ export function Banner({
   compact = false,
 }: BannerProps) {
   const { user, logout } = useAuth();
+  const bannerColor = user?.themeBannerColor;
+  const contextProjectColor = projects.find((p) => p.id === contextProjectId)?.color;
 
   return (
     <header
-      className={`flex flex-wrap items-center justify-between border-b border-emerald-800 bg-emerald-600 ${
-        compact ? "gap-y-1 px-2 py-2" : "px-6 py-3"
-      }`}
+      className={`flex flex-wrap items-center justify-between ${
+        bannerColor ? "border-b border-black/15" : "border-b border-emerald-800 bg-emerald-600"
+      } ${compact ? "gap-y-1 px-2 py-2" : "px-6 py-3"}`}
+      style={bannerColor ? { backgroundColor: bannerColor } : undefined}
     >
       {!compact && <h1 className="text-lg font-semibold text-white">Seize the Day</h1>}
 
       <div className={`flex items-center ${compact ? "gap-1" : "gap-2"}`}>
+        <span
+          className={`font-medium text-white/90 ${compact ? "w-8 text-xs" : "w-20 text-sm"}`}
+        >
+          {formatWeekday(activeDate, compact)}
+        </span>
+
         <button
           type="button"
           aria-label="Previous day"
@@ -66,9 +76,20 @@ export function Banner({
           onChange={(e) => onContextProjectChange(e.target.value || null)}
           className={`rounded border text-sm ${compact ? "max-w-[90px] px-1 py-0.5" : "ml-2 px-2 py-1"} ${
             contextProjectId
-              ? "border-amber-400 bg-amber-100 font-medium text-amber-800"
+              ? contextProjectColor
+                ? "font-medium"
+                : "border-amber-400 bg-amber-100 font-medium text-amber-800"
               : "border-emerald-800 bg-white text-slate-700"
           }`}
+          style={
+            contextProjectColor
+              ? {
+                  backgroundColor: contextProjectColor,
+                  borderColor: contextProjectColor,
+                  color: readableTextColor(contextProjectColor),
+                }
+              : undefined
+          }
         >
           <option value={NONE}>All Projects</option>
           {projects.map((p) => (

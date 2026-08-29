@@ -24,6 +24,41 @@ calendarRouter.get(
     }
 
     const events = await getEventsForDate(user.googleRefreshToken, dateKey);
-    res.json(events);
+
+    const tags = await prisma.eventProjectTag.findMany({
+      where: { userId: user.id, googleEventId: { in: events.map((e) => e.id) } },
+    });
+    const projectIdByEventId = new Map(tags.map((t) => [t.googleEventId, t.projectId.toString()]));
+
+    res.json(
+      events.map((event) => ({
+        ...event,
+        projectId: projectIdByEventId.get(event.id) ?? null,
+      })),
+    );
+  }),
+);
+
+// Tags (or clears, when projectId is null) a specific event with a Project
+// so the Schedule column can color it -- see EventProjectTag in schema.prisma.
+calendarRouter.patch(
+  "/events/:eventId/project",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { projectId } = req.body as { projectId?: string | null };
+    const userId = BigInt(req.user!.userId);
+    const googleEventId = req.params.eventId;
+
+    if (!projectId) {
+      await prisma.eventProjectTag.deleteMany({ where: { userId, googleEventId } });
+      res.json({ googleEventId, projectId: null });
+      return;
+    }
+
+    const tag = await prisma.eventProjectTag.upsert({
+      where: { userId_googleEventId: { userId, googleEventId } },
+      update: { projectId: BigInt(projectId) },
+      create: { userId, googleEventId, projectId: BigInt(projectId) },
+    });
+    res.json({ googleEventId: tag.googleEventId, projectId: tag.projectId.toString() });
   }),
 );

@@ -23,7 +23,7 @@ tasksRouter.get("/", async (req, res) => {
       ...(includeCompleted ? {} : { OR: [{ status: null }, { status: { isComplete: false } }] }),
       ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
     },
-    include: { status: true, priorityGroup: true, note: true, project: true },
+    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
     orderBy: [
       { status: { ordinal: "asc" } },
       { priorityGroup: { prty: "asc" } },
@@ -35,16 +35,8 @@ tasksRouter.get("/", async (req, res) => {
 });
 
 tasksRouter.post("/", async (req: AuthedRequest, res) => {
-  const {
-    description,
-    datePlanned,
-    projectId,
-    priorityGroupId,
-    statusId,
-    prtyOrdinal,
-    assigneeId,
-    noteId,
-  } = req.body as Record<string, unknown>;
+  const { description, datePlanned, projectId, priorityGroupId, statusId, prtyOrdinal, assigneeId } =
+    req.body as Record<string, unknown>;
 
   const parsedDate = parseDateParam(datePlanned);
   if (!description || typeof description !== "string" || !parsedDate) {
@@ -73,9 +65,8 @@ tasksRouter.post("/", async (req: AuthedRequest, res) => {
       priorityGroupId: priorityGroupId ? BigInt(priorityGroupId as string) : null,
       statusId: resolvedStatusId,
       prtyOrdinal: typeof prtyOrdinal === "number" ? prtyOrdinal : null,
-      noteId: noteId ? BigInt(noteId as string) : null,
     },
-    include: { status: true, priorityGroup: true, note: true, project: true },
+    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
   });
 
   res.status(201).json(task);
@@ -83,8 +74,16 @@ tasksRouter.post("/", async (req: AuthedRequest, res) => {
 
 tasksRouter.patch("/:id", async (req, res) => {
   const id = BigInt(req.params.id);
-  const { description, datePlanned, projectId, priorityGroupId, statusId, prtyOrdinal, assigneeId } =
-    req.body as Record<string, unknown>;
+  const {
+    description,
+    datePlanned,
+    projectId,
+    priorityGroupId,
+    statusId,
+    prtyOrdinal,
+    assigneeId,
+    blockerNoteId,
+  } = req.body as Record<string, unknown>;
 
   let completedAtUpdate: { completedAt: Date | null } | Record<string, never> = {};
   if (statusId !== undefined) {
@@ -106,9 +105,12 @@ tasksRouter.patch("/:id", async (req, res) => {
       ...(statusId !== undefined ? { statusId: statusId ? BigInt(statusId as string) : null } : {}),
       ...(prtyOrdinal !== undefined ? { prtyOrdinal: prtyOrdinal as number | null } : {}),
       ...(assigneeId !== undefined ? { assigneeId: BigInt(assigneeId as string) } : {}),
+      ...(blockerNoteId !== undefined
+        ? { blockerNoteId: blockerNoteId ? BigInt(blockerNoteId as string) : null }
+        : {}),
       ...completedAtUpdate,
     },
-    include: { status: true, priorityGroup: true, note: true, project: true },
+    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
   });
 
   res.json(task);

@@ -5,6 +5,11 @@ export interface User {
   nickname: string;
   email: string;
   avatarUrl: string | null;
+  themeBannerColor: string | null;
+  themeSubBannerColor: string | null;
+  themeBackgroundColor: string | null;
+  themeLeftImage: string | null;
+  themeRightImage: string | null;
 }
 
 export interface CalendarEvent {
@@ -14,12 +19,14 @@ export interface CalendarEvent {
   end: string;
   allDay: boolean;
   htmlLink: string | null;
+  projectId: string | null;
 }
 
 export interface Status {
   id: string;
   statusCode: string;
   isComplete: boolean;
+  isBlocked: boolean;
   backgroundColor: string | null;
   foregroundColor: string | null;
   description: string | null;
@@ -38,6 +45,7 @@ export interface Project {
   id: string;
   name: string;
   description: string | null;
+  color: string | null;
 }
 
 export interface Task {
@@ -47,7 +55,7 @@ export interface Task {
   assigneeId: string;
   priorityGroupId: string | null;
   statusId: string | null;
-  noteId: string | null;
+  blockerNoteId: string | null;
   prtyOrdinal: number | null;
   description: string;
   createdAt: string;
@@ -55,7 +63,7 @@ export interface Task {
   completedAt: string | null;
   status: Status | null;
   priorityGroup: PriorityGroup | null;
-  note: { id: string; noteText: string | null } | null;
+  blockerNote: { id: string; shortRef: string | null; noteText: string | null } | null;
   project: Project | null;
 }
 

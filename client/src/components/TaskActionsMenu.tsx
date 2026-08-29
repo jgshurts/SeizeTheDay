@@ -1,24 +1,31 @@
 import { useEffect, useRef } from "react";
-import { CalendarClock, Menu, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarClock, MoreVertical, Trash2 } from "lucide-react";
 
 interface TaskActionsMenuProps {
   open: boolean;
   onToggle: () => void;
   onClose: () => void;
   onMoveToDate: () => void;
+  onMoveToTomorrow: () => void;
   onDelete: () => void;
+  // Set when this row is part of a larger checked selection, so its own
+  // menu acts on the whole selection instead of just this row -- the count
+  // is shown on each action so that isn't a surprise.
+  selectionCount?: number;
 }
 
 // A single row-actions entry point rather than scattering more icon buttons
-// across an already-tight row -- room to grow as more per-task actions show
-// up (this is the first: "Move to date").
+// across an already-tight row.
 export function TaskActionsMenu({
   open,
   onToggle,
   onClose,
   onMoveToDate,
+  onMoveToTomorrow,
   onDelete,
+  selectionCount,
 }: TaskActionsMenuProps) {
+  const suffix = selectionCount && selectionCount > 1 ? ` (${selectionCount})` : "";
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,10 +47,23 @@ export function TaskActionsMenu({
         onClick={onToggle}
         className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
       >
-        <Menu size={16} />
+        <MoreVertical size={16} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-40 rounded border border-slate-200 bg-white py-1 text-sm shadow-lg">
+        <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded border border-slate-200 bg-white py-1 text-sm shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              onMoveToTomorrow();
+              onClose();
+            }}
+            className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
+          >
+            <span className="flex items-center gap-2">
+              <ArrowRight size={14} /> Move to tomorrow{suffix}
+            </span>
+            <span className="text-xs text-slate-400">⇧⌘T</span>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -52,7 +72,7 @@ export function TaskActionsMenu({
             }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
           >
-            <CalendarClock size={14} /> Move to date...
+            <CalendarClock size={14} /> Move to date...{suffix}
           </button>
           <button
             type="button"
@@ -62,7 +82,7 @@ export function TaskActionsMenu({
             }}
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
           >
-            <Trash2 size={14} /> Delete
+            <Trash2 size={14} /> Delete{suffix}
           </button>
         </div>
       )}
