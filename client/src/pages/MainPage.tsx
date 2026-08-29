@@ -5,7 +5,7 @@ import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
 import { ScheduleColumn } from "../components/ScheduleColumn";
 import { SettingsDialog } from "../components/settings/SettingsDialog";
-import { toDateKey } from "../lib/date";
+import { toLocalDateKey } from "../lib/date";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { sortTasks } from "../lib/taskSort";
 import { useIsMobile } from "../lib/useIsMobile";
@@ -47,7 +47,7 @@ function loadStoredContextProjectId(): string | null {
 
 export function MainPage() {
   const { user } = useAuth();
-  const [activeDate, setActiveDate] = useState(() => toDateKey(new Date()));
+  const [activeDate, setActiveDate] = useState(() => toLocalDateKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [tasks, setTasks] = useState<Task[]>([]);

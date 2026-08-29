@@ -3,7 +3,7 @@ import { CalendarPlus } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { withAlpha } from "../lib/color";
 import { googleCalendarDayUrl } from "../lib/googleCalendarLink";
-import { toDateKey } from "../lib/date";
+import { toLocalDateKey } from "../lib/date";
 import { playAlertTone } from "../lib/alertSound";
 import { ColumnHeader, ADD_BUTTON_CLASS } from "./ColumnHeader";
 import type { CalendarEvent, Project } from "../types";
@@ -162,7 +162,7 @@ export function ScheduleColumn({ activeDate, projects, subBannerColor }: Schedul
   const windowStart = START_HOUR * 60;
   const windowEnd = END_HOUR * 60;
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const isToday = toDateKey(now) === activeDate;
+  const isToday = toLocalDateKey(now) === activeDate;
   const showNowLine = isToday && nowMinutes >= windowStart && nowMinutes <= windowEnd;
   const nowLineTopPct = ((nowMinutes - windowStart) / TOTAL_MINUTES) * 100;
 

@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { addDays, formatWeekday } from "../lib/date";
+import { addDays, formatWeekday, toLocalDateKey } from "../lib/date";
 import { readableTextColor } from "../lib/color";
 import type { Project } from "../types";
 
@@ -49,7 +49,7 @@ export function Banner({
           type="button"
           aria-label="Previous day"
           onClick={() => onDateChange(addDays(activeDate, -1))}
-          className={`rounded text-white hover:bg-emerald-700 ${compact ? "p-0.5" : "p-1"}`}
+          className={`rounded border border-white/40 bg-white/10 text-white hover:bg-white/25 ${compact ? "p-0.5" : "p-1"}`}
         >
           <ChevronLeft size={compact ? 16 : 20} />
         </button>
@@ -65,9 +65,19 @@ export function Banner({
           type="button"
           aria-label="Next day"
           onClick={() => onDateChange(addDays(activeDate, 1))}
-          className={`rounded text-white hover:bg-emerald-700 ${compact ? "p-0.5" : "p-1"}`}
+          className={`rounded border border-white/40 bg-white/10 text-white hover:bg-white/25 ${compact ? "p-0.5" : "p-1"}`}
         >
           <ChevronRight size={compact ? 16 : 20} />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onDateChange(toLocalDateKey(new Date()))}
+          className={`rounded border border-white/40 bg-white/10 font-medium text-white hover:bg-white/25 ${
+            compact ? "px-1 py-0.5 text-xs" : "px-2 py-1 text-sm"
+          }`}
+        >
+          Today
         </button>
 
         <select

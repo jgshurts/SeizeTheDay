@@ -1,4 +1,4 @@
-import { addDays, toDateKey } from "./date";
+import { addDays, toLocalDateKey } from "./date";
 
 // Bumping forward by one day is the common case, but for something already
 // overdue by more than a day, jumping all the way to tomorrow would
@@ -6,7 +6,7 @@ import { addDays, toDateKey } from "./date";
 // past the latest date involved (ISO date strings compare lexicographically,
 // so a plain string comparison works as a min).
 export function defaultMoveDate(latestDate: string): string {
-  const tomorrow = addDays(toDateKey(new Date()), 1);
+  const tomorrow = addDays(toLocalDateKey(new Date()), 1);
   const dayAfterLatest = addDays(latestDate, 1);
   return tomorrow < dayAfterLatest ? tomorrow : dayAfterLatest;
 }
