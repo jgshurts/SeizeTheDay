@@ -301,10 +301,10 @@ export function TasksColumn({
                   />
                 </th>
               )}
-              <th className="w-10 px-1 py-1 text-center">Sta</th>
-              <th className="w-10 px-1 py-1 text-center">PG</th>
-              <th className="w-[44px] px-1 py-1 text-center">PR</th>
-              {!isMobile && <th className="w-20 px-1 py-1 text-center">PJ</th>}
+              <th className="w-[35px] px-1 py-1 text-center">Sta</th>
+              <th className="w-[35px] px-1 py-1 text-center">PG</th>
+              <th className="w-[30px] px-1 py-1 text-center">PR</th>
+              {!isMobile && <th className="w-[56px] px-1 py-1 text-center">PJ</th>}
               <th className="px-2 py-1">Description</th>
               {!isMobile && <th className="w-9 px-1 py-1 text-center">Blocker</th>}
               <th className="w-8 px-2 py-1" />
@@ -414,6 +414,7 @@ export function TasksColumn({
                         onUpdateTask(task.id, { projectId: e.target.value || null })
                       }
                       title={task.project?.name ?? undefined}
+                      style={{ textAlignLast: "center" }}
                       className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
                     >
                       <option value={NONE}>-</option>
