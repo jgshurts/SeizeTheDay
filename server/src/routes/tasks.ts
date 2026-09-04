@@ -34,6 +34,43 @@ tasksRouter.get("/", async (req, res) => {
   res.json(tasks);
 });
 
+// Completed-tasks report: every task marked complete, regardless of
+// datePlanned, for the Settings > Completed Tasks export. Sorted by
+// completedAt (most recent first) then the same priorityGroup/prty order
+// as the daily view, so the default table/export order matches what the
+// user expects without any client-side re-sort.
+tasksRouter.get("/completed", async (req, res) => {
+  const { projectId, startDate, endDate } = req.query;
+
+  const start = parseDateParam(startDate);
+  const end = parseDateParam(endDate);
+  if ((startDate && !start) || (endDate && !end)) {
+    return res.status(400).json({ error: "startDate/endDate must be YYYY-MM-DD" });
+  }
+  // end is inclusive of the whole calendar day, so the range's upper bound
+  // is the start of the following day.
+  const endExclusive = end ? new Date(end.getTime() + 24 * 60 * 60 * 1000) : undefined;
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      completedAt: {
+        not: null,
+        ...(start ? { gte: start } : {}),
+        ...(endExclusive ? { lt: endExclusive } : {}),
+      },
+      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+    },
+    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
+    orderBy: [
+      { completedAt: "desc" },
+      { priorityGroup: { prty: "asc" } },
+      { prtyOrdinal: "asc" },
+    ],
+  });
+
+  res.json(tasks);
+});
+
 tasksRouter.post("/", async (req: AuthedRequest, res) => {
   const { description, datePlanned, projectId, priorityGroupId, statusId, prtyOrdinal, assigneeId } =
     req.body as Record<string, unknown>;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Banner } from "../components/Banner";
+import { CompletedTasksReport } from "../components/CompletedTasksReport";
 import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
 import { ScheduleColumn } from "../components/ScheduleColumn";
@@ -45,10 +46,17 @@ function loadStoredContextProjectId(): string | null {
   return localStorage.getItem(CONTEXT_PROJECT_STORAGE_KEY);
 }
 
+const SHOW_SCHEDULE_STORAGE_KEY = "std_show_schedule";
+
+function loadStoredShowSchedule(): boolean {
+  return localStorage.getItem(SHOW_SCHEDULE_STORAGE_KEY) !== "false";
+}
+
 export function MainPage() {
   const { user } = useAuth();
   const [activeDate, setActiveDate] = useState(() => toLocalDateKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [completedTasksOpen, setCompletedTasksOpen] = useState(false);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -56,6 +64,7 @@ export function MainPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCompleted, setShowCompleted] = useState(true);
   const [contextProjectId, setContextProjectId] = useState(loadStoredContextProjectId);
+  const [showSchedule, setShowSchedule] = useState(loadStoredShowSchedule);
 
   const [taskColumnWidth, setTaskColumnWidth] = useState(loadStoredSplit);
   const [isDraggingSplit, setIsDraggingSplit] = useState(false);
@@ -63,6 +72,10 @@ export function MainPage() {
 
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState<"tasks" | "schedule" | "notes">("tasks");
+  // Hiding Schedule while its mobile tab is active would otherwise leave the
+  // user stranded on a tab with nothing to show -- derived at render instead
+  // of corrected in an effect, so there's no extra render in between.
+  const effectiveMobileTab = mobileTab === "schedule" && !showSchedule ? "tasks" : mobileTab;
 
   useEffect(() => {
     api.get<Status[]>("/statuses").then(setStatuses);
@@ -79,6 +92,10 @@ export function MainPage() {
       localStorage.removeItem(CONTEXT_PROJECT_STORAGE_KEY);
     }
   }, [contextProjectId]);
+
+  useEffect(() => {
+    localStorage.setItem(SHOW_SCHEDULE_STORAGE_KEY, String(showSchedule));
+  }, [showSchedule]);
 
   useEffect(() => {
     const projectParam = contextProjectId ? `&projectId=${contextProjectId}` : "";
@@ -175,14 +192,17 @@ export function MainPage() {
   // The Tasks/Notes split stays user-resizable (see taskColumnWidth above);
   // Schedule is carved out of the Tasks side at a fixed 70/30 ratio rather
   // than adding a second draggable divider -- meeting titles are short, so
-  // Schedule doesn't need as much width as the Tasks grid does.
-  const tasksAndSchedule = (
+  // Schedule doesn't need as much width as the Tasks grid does. Toggled off
+  // entirely, Tasks reclaims the full width.
+  const tasksAndSchedule = showSchedule ? (
     <div className="flex h-full min-h-0 gap-2">
       <div className="min-h-0 w-[70%] overflow-hidden">{tasksColumn}</div>
       <div className="min-h-0 w-[30%] overflow-hidden border-l border-slate-200 pl-2">
         {scheduleColumn}
       </div>
     </div>
+  ) : (
+    tasksColumn
   );
 
   const notesColumn = (
@@ -211,6 +231,9 @@ export function MainPage() {
         activeDate={activeDate}
         onDateChange={setActiveDate}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenCompletedTasks={() => setCompletedTasksOpen(true)}
+        showSchedule={showSchedule}
+        onShowScheduleChange={setShowSchedule}
         projects={projects}
         contextProjectId={contextProjectId}
         onContextProjectChange={setContextProjectId}
@@ -220,13 +243,15 @@ export function MainPage() {
       {isMobile ? (
         <>
           <div className="flex border-b border-slate-200 bg-white">
-            {(["tasks", "schedule", "notes"] as const).map((tab) => (
+            {(["tasks", "schedule", "notes"] as const)
+              .filter((tab) => tab !== "schedule" || showSchedule)
+              .map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setMobileTab(tab)}
                 className={`flex-1 py-2 text-sm font-medium capitalize ${
-                  mobileTab === tab
+                  effectiveMobileTab === tab
                     ? "border-b-2 border-indigo-600 text-indigo-700"
                     : "text-slate-500"
                 }`}
@@ -239,12 +264,12 @@ export function MainPage() {
           <main
             className="min-h-0 flex-1 overflow-hidden p-3"
             style={panelBackgroundStyle(
-              mobileTab === "notes" ? user?.themeRightImage : user?.themeLeftImage,
+              effectiveMobileTab === "notes" ? user?.themeRightImage : user?.themeLeftImage,
             )}
           >
-            {mobileTab === "tasks" && tasksColumn}
-            {mobileTab === "schedule" && scheduleColumn}
-            {mobileTab === "notes" && notesColumn}
+            {effectiveMobileTab === "tasks" && tasksColumn}
+            {effectiveMobileTab === "schedule" && scheduleColumn}
+            {effectiveMobileTab === "notes" && notesColumn}
           </main>
         </>
       ) : (
@@ -280,6 +305,9 @@ export function MainPage() {
       )}
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {completedTasksOpen && (
+        <CompletedTasksReport projects={projects} onClose={() => setCompletedTasksOpen(false)} />
+      )}
     </div>
   );
 }
