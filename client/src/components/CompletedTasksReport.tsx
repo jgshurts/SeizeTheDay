@@ -99,6 +99,22 @@ function formatRelevantDateForExport(task: Task): string {
   return `${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}/${year}`;
 }
 
+// The status codes are single expressive characters on screen (√, x, >, -),
+// but those don't render reliably once they land in Excel -- spelled out
+// here for the export only. Anything else (a custom status code) passes
+// through unchanged rather than disappearing.
+const STATUS_CODE_LABELS: Record<string, string> = {
+  "√": "Done",
+  X: "Canceled",
+  ">": "In Progress",
+  "-": "Not Started",
+};
+
+function statusLabelForExport(statusCode: string | undefined): string {
+  if (!statusCode) return "";
+  return STATUS_CODE_LABELS[statusCode.toUpperCase()] ?? statusCode;
+}
+
 // Quotes/escapes a field for CSV per RFC 4180 -- Excel opens .csv files
 // natively, so this avoids pulling in a full xlsx-writing dependency just
 // for a report export.
@@ -111,7 +127,7 @@ function downloadCsv(tasks: Task[]): void {
   const header = ["Date", "Status", "Priority Group", "Priority", "Description", "Project"];
   const rows = tasks.map((t) => [
     formatRelevantDateForExport(t),
-    t.status?.statusCode ?? "",
+    statusLabelForExport(t.status?.statusCode),
     t.priorityGroup?.prtyCode ?? "",
     t.prtyOrdinal != null ? String(t.prtyOrdinal) : "",
     t.description,
