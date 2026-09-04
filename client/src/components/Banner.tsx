@@ -131,8 +131,8 @@ export function Banner({
         </button>
         <button
           type="button"
-          aria-label="Completed tasks report"
-          title="Completed tasks report"
+          aria-label="Export Tasks"
+          title="Export Tasks"
           onClick={onOpenCompletedTasks}
           className={`rounded text-white hover:bg-emerald-700 ${compact ? "p-0.5" : "p-1"}`}
         >

@@ -97,11 +97,16 @@ export function MainPage() {
     localStorage.setItem(SHOW_SCHEDULE_STORAGE_KEY, String(showSchedule));
   }, [showSchedule]);
 
-  useEffect(() => {
+  async function fetchTasks() {
     const projectParam = contextProjectId ? `&projectId=${contextProjectId}` : "";
-    api
-      .get<Task[]>(`/tasks?date=${activeDate}&includeCompleted=${showCompleted}${projectParam}`)
-      .then(setTasks);
+    const fetched = await api.get<Task[]>(
+      `/tasks?date=${activeDate}&includeCompleted=${showCompleted}${projectParam}`,
+    );
+    setTasks(fetched);
+  }
+
+  useEffect(() => {
+    fetchTasks();
   }, [activeDate, showCompleted, contextProjectId]);
 
   // Dragging the Tasks/Notes divider. Position is derived straight from the
@@ -165,6 +170,15 @@ export function MainPage() {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
+  // Same compaction a move triggers automatically, run on demand for the
+  // day currently in view. The endpoint doesn't echo back which tasks
+  // changed, so a plain refetch is simpler than trying to patch ordinals
+  // into local state.
+  async function renumberDay() {
+    await api.post(`/tasks/renumber`, { date: activeDate });
+    await fetchTasks();
+  }
+
   const tasksColumn = (
     <TasksColumn
       activeDate={activeDate}
@@ -177,6 +191,7 @@ export function MainPage() {
       onAddTask={(description, projectId) => addTask(description, { projectId })}
       onUpdateTask={updateTask}
       onDeleteTask={deleteTask}
+      onRenumberDay={renumberDay}
       subBannerColor={user?.themeSubBannerColor}
     />
   );

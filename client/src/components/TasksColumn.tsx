@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, ListTodo, OctagonAlert, Trash2 } from "lucide-react";
+import { ArrowLeftRight, ListOrdered, ListTodo, OctagonAlert, Trash2 } from "lucide-react";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { useIsMobile } from "../lib/useIsMobile";
 import { addDays, formatDisplay } from "../lib/date";
@@ -28,6 +28,7 @@ interface TasksColumnProps {
   onAddTask: (description: string, projectId?: string | null) => Promise<Task>;
   onUpdateTask: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
+  onRenumberDay: () => Promise<void>;
   subBannerColor: string | null | undefined;
 }
 
@@ -117,6 +118,7 @@ export function TasksColumn({
   onAddTask,
   onUpdateTask,
   onDeleteTask,
+  onRenumberDay,
   subBannerColor,
 }: TasksColumnProps) {
   const [newDescription, setNewDescription] = useState("");
@@ -129,6 +131,7 @@ export function TasksColumn({
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false);
+  const [renumbering, setRenumbering] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
 
@@ -219,6 +222,15 @@ export function TasksColumn({
     setSelectedIds(new Set());
   }
 
+  async function renumberDay() {
+    setRenumbering(true);
+    try {
+      await onRenumberDay();
+    } finally {
+      setRenumbering(false);
+    }
+  }
+
   function toggleSelect(taskId: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -254,13 +266,24 @@ export function TasksColumn({
           />
           Show completed
         </label>
-        <button
-          type="button"
-          onClick={() => setMoveDialogTarget("unfinished")}
-          className="flex w-fit items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
-        >
-          <ArrowLeftRight size={16} /> Move unfinished
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={renumberDay}
+            disabled={renumbering}
+            title="Re-sort each priority group's incomplete tasks and compact their numbers, starting at 1"
+            className="flex w-fit items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ListOrdered size={16} /> {renumbering ? "Renumbering..." : "Renumber"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoveDialogTarget("unfinished")}
+            className="flex w-fit items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
+          >
+            <ArrowLeftRight size={16} /> Move unfinished
+          </button>
+        </div>
       </div>
 
       {!isMobile && selectedIds.size > 0 && (
@@ -302,9 +325,9 @@ export function TasksColumn({
                 </th>
               )}
               <th className="w-[35px] px-1 py-1 text-center">Sta</th>
-              <th className="w-[35px] px-1 py-1 text-center">PG</th>
-              <th className="w-[30px] px-1 py-1 text-center">PR</th>
-              {!isMobile && <th className="w-[56px] px-1 py-1 text-center">PJ</th>}
+              <th className="w-[34px] px-1 py-1 text-center">PG</th>
+              <th className="w-[34px] px-1 py-1 text-center">PR</th>
+              {!isMobile && <th className="w-[52px] px-1 py-1 text-center">PJ</th>}
               <th className="px-2 py-1">Description</th>
               {!isMobile && <th className="w-9 px-1 py-1 text-center">Blocker</th>}
               <th className="w-8 px-2 py-1" />

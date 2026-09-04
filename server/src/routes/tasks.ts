@@ -34,13 +34,24 @@ tasksRouter.get("/", async (req, res) => {
   res.json(tasks);
 });
 
-// Completed-tasks report: every task marked complete, regardless of
-// datePlanned, for the Settings > Completed Tasks export. Sorted by
-// completedAt (most recent first) then the same priorityGroup/prty order
-// as the daily view, so the default table/export order matches what the
-// user expects without any client-side re-sort.
-tasksRouter.get("/completed", async (req, res) => {
-  const { projectId, startDate, endDate } = req.query;
+// Task export report: tasks regardless of datePlanned, filtered by
+// completion status, for the Task Export dialog. A task's "relevant date"
+// is completedAt when it has one, else datePlanned -- so the date range
+// filters/sorts complete tasks by when they were finished and incomplete
+// ones by when they're scheduled, letting one range make sense across all
+// three status filters instead of leaving incomplete tasks dateless.
+tasksRouter.get("/export", async (req, res) => {
+  const { projectId, startDate, endDate, status } = req.query;
+
+  if (status !== undefined && status !== "complete" && status !== "incomplete" && status !== "all") {
+    return res.status(400).json({ error: "status must be 'complete', 'incomplete', or 'all'" });
+  }
+  const statusFilter =
+    status === "incomplete"
+      ? { OR: [{ status: null }, { status: { isComplete: false } }] }
+      : status === "all"
+        ? {}
+        : { completedAt: { not: null } };
 
   const start = parseDateParam(startDate);
   const end = parseDateParam(endDate);
@@ -50,15 +61,35 @@ tasksRouter.get("/completed", async (req, res) => {
   // end is inclusive of the whole calendar day, so the range's upper bound
   // is the start of the following day.
   const endExclusive = end ? new Date(end.getTime() + 24 * 60 * 60 * 1000) : undefined;
+  const dateRangeFilter =
+    start || endExclusive
+      ? {
+          OR: [
+            {
+              completedAt: {
+                not: null,
+                ...(start ? { gte: start } : {}),
+                ...(endExclusive ? { lt: endExclusive } : {}),
+              },
+            },
+            {
+              completedAt: null,
+              datePlanned: {
+                ...(start ? { gte: start } : {}),
+                ...(endExclusive ? { lt: endExclusive } : {}),
+              },
+            },
+          ],
+        }
+      : {};
 
   const tasks = await prisma.task.findMany({
     where: {
-      completedAt: {
-        not: null,
-        ...(start ? { gte: start } : {}),
-        ...(endExclusive ? { lt: endExclusive } : {}),
-      },
-      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+      AND: [
+        statusFilter,
+        dateRangeFilter,
+        typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {},
+      ],
     },
     include: { status: true, priorityGroup: true, blockerNote: true, project: true },
     orderBy: [
@@ -109,6 +140,64 @@ tasksRouter.post("/", async (req: AuthedRequest, res) => {
   res.status(201).json(task);
 });
 
+// Re-sorts a priority group's incomplete tasks on one day by their current
+// prtyOrdinal, then compacts that ordering down to 1..N -- the "renumber"
+// step that runs after a move so the destination day doesn't accumulate
+// gaps or collisions from tasks arriving with ordinals from other days.
+// Tasks with no prtyOrdinal set are left alone rather than pulled into the
+// sequence, since a task without a priority value was never assigned one.
+async function renumberPriorityGroup(datePlanned: Date, priorityGroupId: bigint) {
+  const tasks = await prisma.task.findMany({
+    where: {
+      datePlanned,
+      priorityGroupId,
+      prtyOrdinal: { not: null },
+      OR: [{ status: null }, { status: { isComplete: false } }],
+    },
+    orderBy: { prtyOrdinal: "asc" },
+  });
+
+  const updates = tasks
+    .map((t, i) => ({ id: t.id, prtyOrdinal: i + 1 }))
+    .filter((u, i) => u.prtyOrdinal !== tasks[i].prtyOrdinal);
+
+  if (updates.length === 0) return;
+
+  await prisma.$transaction(
+    updates.map((u) =>
+      prisma.task.update({ where: { id: u.id }, data: { prtyOrdinal: u.prtyOrdinal } }),
+    ),
+  );
+}
+
+// On-demand version of the same renumber that a move triggers automatically
+// -- lets the user tidy up a day's priority/ordinal gaps (e.g. after a bunch
+// of manual PR edits or deletions) without having to move tasks off and back
+// on to trigger it.
+tasksRouter.post("/renumber", async (req, res) => {
+  const datePlanned = parseDateParam(req.body?.date);
+  if (!datePlanned) {
+    return res.status(400).json({ error: "Body field 'date' must be YYYY-MM-DD" });
+  }
+
+  const groups = await prisma.task.findMany({
+    where: {
+      datePlanned,
+      priorityGroupId: { not: null },
+      prtyOrdinal: { not: null },
+      OR: [{ status: null }, { status: { isComplete: false } }],
+    },
+    select: { priorityGroupId: true },
+    distinct: ["priorityGroupId"],
+  });
+
+  for (const { priorityGroupId } of groups) {
+    if (priorityGroupId) await renumberPriorityGroup(datePlanned, priorityGroupId);
+  }
+
+  res.status(204).send();
+});
+
 tasksRouter.patch("/:id", async (req, res) => {
   const id = BigInt(req.params.id);
   const {
@@ -130,6 +219,8 @@ tasksRouter.patch("/:id", async (req, res) => {
     completedAtUpdate = { completedAt: newStatus?.isComplete ? new Date() : null };
   }
 
+  const existing = datePlanned !== undefined ? await prisma.task.findUnique({ where: { id } }) : null;
+
   const task = await prisma.task.update({
     where: { id },
     data: {
@@ -149,6 +240,20 @@ tasksRouter.patch("/:id", async (req, res) => {
     },
     include: { status: true, priorityGroup: true, blockerNote: true, project: true },
   });
+
+  // A move onto a new day renumbers that day's priority group so the moved
+  // task(s) slot in cleanly rather than piling up at whatever ordinal they
+  // carried on their old day. Re-fetch afterward since the renumber may
+  // have changed this very task's prtyOrdinal out from under the response.
+  const movedToNewDate = existing && existing.datePlanned.getTime() !== task.datePlanned.getTime();
+  if (movedToNewDate && task.priorityGroupId) {
+    await renumberPriorityGroup(task.datePlanned, task.priorityGroupId);
+    const refreshed = await prisma.task.findUnique({
+      where: { id },
+      include: { status: true, priorityGroup: true, blockerNote: true, project: true },
+    });
+    return res.json(refreshed);
+  }
 
   res.json(task);
 });

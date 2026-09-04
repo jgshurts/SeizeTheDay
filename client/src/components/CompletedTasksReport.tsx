@@ -5,10 +5,17 @@ import { api } from "../lib/api";
 import { addDays, toLocalDateKey } from "../lib/date";
 import type { Project, Task } from "../types";
 
-type SortKey = "completedAt" | "priorityGroup" | "priority" | "description" | "project";
+type StatusFilter = "complete" | "incomplete" | "all";
+type SortKey = "date" | "status" | "priorityGroup" | "priority" | "description" | "project";
 type SortDirection = "asc" | "desc";
 
 const NONE = "";
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "complete", label: "Complete" },
+  { value: "incomplete", label: "Incomplete" },
+  { value: "all", label: "All" },
+];
 
 interface Column {
   key: SortKey;
@@ -16,17 +23,28 @@ interface Column {
 }
 
 const COLUMNS: Column[] = [
-  { key: "completedAt", label: "Date Completed" },
+  { key: "date", label: "Date" },
+  { key: "status", label: "Status" },
   { key: "priorityGroup", label: "PG" },
   { key: "priority", label: "PR" },
   { key: "description", label: "Description" },
   { key: "project", label: "Project" },
 ];
 
+// A task's "relevant date" for display/sort/filter purposes: when it was
+// completed, or (for a still-open task) when it's scheduled -- so a single
+// date-oriented column and range filter makes sense across all three
+// status filters instead of leaving incomplete tasks dateless.
+function relevantDate(task: Task): string {
+  return task.completedAt ?? task.datePlanned;
+}
+
 function sortValue(task: Task, key: SortKey): string | number {
   switch (key) {
-    case "completedAt":
-      return task.completedAt ?? "";
+    case "date":
+      return relevantDate(task);
+    case "status":
+      return task.status?.statusCode ?? "";
     case "priorityGroup":
       return task.priorityGroup?.prty ?? Infinity;
     case "priority":
@@ -49,11 +67,23 @@ function sortTasks(tasks: Task[], key: SortKey, direction: SortDirection): Task[
   });
 }
 
-// completedAt is a real timestamp, not a date-only key -- format it from
-// the browser's local time zone (like toLocalDateKey) rather than treating
-// it as a UTC date key.
-function formatCompletedAt(completedAt: string): string {
-  return new Date(completedAt).toLocaleDateString(undefined, {
+// completedAt is a real timestamp -- read its date in the browser's local
+// time zone. datePlanned, when there's no completedAt, is a UTC-midnight
+// date key (like every other datePlanned in the app) -- reading that one in
+// local time would shift it a day near a UTC midnight boundary, so it's
+// read in UTC instead, the same way lib/date's formatDisplay does.
+function relevantDateParts(task: Task): { year: number; month: number; day: number } {
+  if (task.completedAt) {
+    const d = new Date(task.completedAt);
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  const d = new Date(task.datePlanned);
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+}
+
+function formatRelevantDate(task: Task): string {
+  const { year, month, day } = relevantDateParts(task);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
     weekday: "short",
     year: "numeric",
     month: "short",
@@ -64,11 +94,9 @@ function formatCompletedAt(completedAt: string): string {
 // mm/dd/yyyy -- Excel only recognizes a cell as a sortable date in this (or
 // its own locale's) numeric form, not the "Mon, Sep 1, 2026" display format
 // used in the on-screen table.
-function formatCompletedAtForExport(completedAt: string): string {
-  const d = new Date(completedAt);
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${month}/${day}/${d.getFullYear()}`;
+function formatRelevantDateForExport(task: Task): string {
+  const { year, month, day } = relevantDateParts(task);
+  return `${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}/${year}`;
 }
 
 // Quotes/escapes a field for CSV per RFC 4180 -- Excel opens .csv files
@@ -80,14 +108,14 @@ function csvField(value: string): string {
 }
 
 function downloadCsv(tasks: Task[]): void {
-  const header = ["Date Completed", "Priority Group", "Priority", "Description", "Project", "Status"];
+  const header = ["Date", "Status", "Priority Group", "Priority", "Description", "Project"];
   const rows = tasks.map((t) => [
-    t.completedAt ? formatCompletedAtForExport(t.completedAt) : "",
+    formatRelevantDateForExport(t),
+    t.status?.statusCode ?? "",
     t.priorityGroup?.prtyCode ?? "",
     t.prtyOrdinal != null ? String(t.prtyOrdinal) : "",
     t.description,
     t.project?.name ?? "",
-    t.status?.statusCode ?? "",
   ]);
   const csv = [header, ...rows].map((row) => row.map(csvField).join(",")).join("\r\n");
 
@@ -95,7 +123,7 @@ function downloadCsv(tasks: Task[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `completed-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `task-export-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -109,25 +137,26 @@ export function CompletedTasksReport({
 }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("complete");
   const [projectId, setProjectId] = useState<string | null>(null);
   // Defaults to the last 7 days (today and the 6 days before it).
   const [fromDate, setFromDate] = useState(() => addDays(toLocalDateKey(new Date()), -6));
   const [toDate, setToDate] = useState(() => toLocalDateKey(new Date()));
-  const [sortKey, setSortKey] = useState<SortKey>("completedAt");
+  const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
+    params.set("status", statusFilter);
     if (projectId) params.set("projectId", projectId);
     if (fromDate) params.set("startDate", fromDate);
     if (toDate) params.set("endDate", toDate);
-    const query = params.toString();
     api
-      .get<Task[]>(`/tasks/completed${query ? `?${query}` : ""}`)
+      .get<Task[]>(`/tasks/export?${params.toString()}`)
       .then(setTasks)
       .finally(() => setLoading(false));
-  }, [projectId, fromDate, toDate]);
+  }, [statusFilter, projectId, fromDate, toDate]);
 
   const sorted = useMemo(() => sortTasks(tasks, sortKey, sortDirection), [tasks, sortKey, sortDirection]);
 
@@ -141,9 +170,22 @@ export function CompletedTasksReport({
   }
 
   return (
-    <Modal title="Completed Tasks" onClose={onClose}>
+    <Modal title="Task Export" onClose={onClose} maxWidthClassName="max-w-[772px]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Filter by status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="rounded border border-slate-300 px-2 py-1 text-sm"
+          >
+            {STATUS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+
           <select
             aria-label="Filter by project"
             value={projectId ?? NONE}
@@ -197,7 +239,7 @@ export function CompletedTasksReport({
       {loading ? (
         <p className="py-8 text-center text-sm text-slate-500">Loading…</p>
       ) : sorted.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500">No completed tasks found.</p>
+        <p className="py-8 text-center text-sm text-slate-500">No tasks found.</p>
       ) : (
         <div className="max-h-[55vh] overflow-y-auto">
           <table className="w-full text-left text-sm">
@@ -222,7 +264,18 @@ export function CompletedTasksReport({
               {sorted.map((t) => (
                 <tr key={t.id} className="border-b border-slate-100 last:border-0">
                   <td className="whitespace-nowrap px-2 py-1.5 text-slate-700">
-                    {t.completedAt ? formatCompletedAt(t.completedAt) : ""}
+                    {formatRelevantDate(t)}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <span
+                      className="rounded px-1.5 py-0.5 text-xs font-medium"
+                      style={{
+                        backgroundColor: t.status?.backgroundColor ?? undefined,
+                        color: t.status?.foregroundColor ?? undefined,
+                      }}
+                    >
+                      {t.status?.statusCode ?? "-"}
+                    </span>
                   </td>
                   <td className="px-2 py-1.5 text-slate-700">{t.priorityGroup?.prtyCode ?? ""}</td>
                   <td className="px-2 py-1.5 text-slate-700">{t.prtyOrdinal ?? ""}</td>

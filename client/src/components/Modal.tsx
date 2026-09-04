@@ -6,9 +6,12 @@ interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  // Tailwind max-w-* class for the dialog's width; most dialogs are fine
+  // with the default, but a couple (e.g. a wide report table) need more.
+  maxWidthClassName?: string;
 }
 
-export function Modal({ title, onClose, children }: ModalProps) {
+export function Modal({ title, onClose, children, maxWidthClassName = "max-w-2xl" }: ModalProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -26,7 +29,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+        className={`flex max-h-[85vh] w-full ${maxWidthClassName} flex-col rounded-lg bg-white shadow-xl`}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h2 className="text-base font-semibold text-slate-800">{title}</h2>
