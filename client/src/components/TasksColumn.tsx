@@ -406,6 +406,13 @@ export function TasksColumn({
                 </td>
                 <td className="px-1 py-1">
                   <input
+                    // Uncontrolled (defaultValue only applies on mount), so
+                    // when the server's value changes out from under us --
+                    // Renumber, or another tab -- without this row's own
+                    // onChange/onBlur causing it (e.g. Renumber touching
+                    // many rows at once), the key forces a remount to pick
+                    // up the new value instead of showing a stale one.
+                    key={task.prtyOrdinal ?? "null"}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
