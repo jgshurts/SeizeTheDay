@@ -10,7 +10,10 @@ projectsRouter.use(requireAuth);
 projectsRouter.get(
   "/",
   asyncHandler(async (_req, res) => {
-    const projects = await prisma.project.findMany({ orderBy: { name: "asc" } });
+    const projects = await prisma.project.findMany({
+      orderBy: { name: "asc" },
+      include: { _count: { select: { tasks: true, notes: true } } },
+    });
     res.json(projects);
   }),
 );

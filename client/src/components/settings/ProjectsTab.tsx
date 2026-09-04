@@ -43,11 +43,24 @@ export function ProjectsTab() {
     }
   }
 
-  async function deleteProject(id: string) {
+  async function deleteProject(project: Project) {
+    const taskCount = project._count?.tasks ?? 0;
+    const noteCount = project._count?.notes ?? 0;
+    if (taskCount > 0 || noteCount > 0) {
+      const parts = [
+        taskCount > 0 ? `${taskCount} task${taskCount === 1 ? "" : "s"}` : null,
+        noteCount > 0 ? `${noteCount} note${noteCount === 1 ? "" : "s"}` : null,
+      ].filter(Boolean);
+      const confirmed = window.confirm(
+        `"${project.name}" is linked to ${parts.join(" and ")}. Deleting it will leave those without a project. Delete anyway?`,
+      );
+      if (!confirmed) return;
+    }
+
     setError(null);
     try {
-      await api.delete(`/projects/${id}`);
-      setProjects((prev) => prev.filter((p) => p.id !== id));
+      await api.delete(`/projects/${project.id}`);
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to delete project");
     }
@@ -94,7 +107,7 @@ export function ProjectsTab() {
                 <button
                   type="button"
                   aria-label="Delete project"
-                  onClick={() => deleteProject(p.id)}
+                  onClick={() => deleteProject(p)}
                   className="text-slate-400 hover:text-red-600"
                 >
                   <Trash2 size={16} />

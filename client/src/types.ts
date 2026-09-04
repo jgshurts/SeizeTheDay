@@ -46,6 +46,9 @@ export interface Project {
   name: string;
   description: string | null;
   color: string | null;
+  // Only populated by GET /projects (the Settings > Projects list) --
+  // lets the delete confirmation warn before orphaning real tasks/notes.
+  _count?: { tasks: number; notes: number };
 }
 
 export interface Task {
