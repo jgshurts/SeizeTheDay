@@ -8,9 +8,12 @@ export const ADD_BUTTON_CLASS =
 // Icon-only secondary actions in a column header (Renumber, Move Unfinished,
 // Search, etc.) -- distinct from ADD_BUTTON_CLASS's filled primary-action
 // look, and relies on each button's own title/aria-label for a tooltip
-// rather than a text label taking up header space.
+// rather than a text label taking up header space. The header's own
+// background is user-themeable (color prop below), so a translucent white
+// backing keeps these icons legible instead of just matching a hover state
+// to whatever that color happens to be.
 export const ICON_BUTTON_CLASS =
-  "rounded p-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50";
+  "rounded bg-white/50 p-1.5 text-slate-600 hover:bg-white/80 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
 
 interface ColumnHeaderProps {
   label: string;
