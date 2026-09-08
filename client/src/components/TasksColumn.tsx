@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
+  Download,
   History,
-  ListChecks,
   ListOrdered,
   ListTodo,
   OctagonAlert,
@@ -294,7 +294,7 @@ export function TasksColumn({
             aria-label="Export Tasks"
             className={ICON_BUTTON_CLASS}
           >
-            <ListChecks size={16} />
+            <Download size={16} />
           </button>
           <button
             type="button"
