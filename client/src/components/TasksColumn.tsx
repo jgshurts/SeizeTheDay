@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, ListOrdered, ListTodo, OctagonAlert, Trash2 } from "lucide-react";
+import {
+  ArrowLeftRight,
+  History,
+  ListChecks,
+  ListOrdered,
+  ListTodo,
+  OctagonAlert,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { useIsMobile } from "../lib/useIsMobile";
 import { addDays, formatDisplay } from "../lib/date";
@@ -13,7 +22,7 @@ import { StatusSelect } from "./StatusSelect";
 import { MoveTaskDateDialog } from "./MoveTaskDateDialog";
 import { NoteRefText } from "./NoteRefText";
 import { NoteRefBadge } from "./NoteRefBadge";
-import { ColumnHeader, ADD_BUTTON_CLASS } from "./ColumnHeader";
+import { ColumnHeader, ADD_BUTTON_CLASS, ICON_BUTTON_CLASS } from "./ColumnHeader";
 import { withAlpha } from "../lib/color";
 import { confirmMoveIfComplete } from "../lib/confirmMove";
 import type { Note, PriorityGroup, Project, Status, Task } from "../types";
@@ -30,6 +39,9 @@ interface TasksColumnProps {
   onUpdateTask: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
   onRenumberDay: () => Promise<void>;
+  onOpenUnfinishedTasksDialog: () => void;
+  onOpenSearchTasksDialog: () => void;
+  onOpenTaskExport: () => void;
   subBannerColor: string | null | undefined;
 }
 
@@ -120,6 +132,9 @@ export function TasksColumn({
   onUpdateTask,
   onDeleteTask,
   onRenumberDay,
+  onOpenUnfinishedTasksDialog,
+  onOpenSearchTasksDialog,
+  onOpenTaskExport,
   subBannerColor,
 }: TasksColumnProps) {
   const [newDescription, setNewDescription] = useState("");
@@ -253,12 +268,64 @@ export function TasksColumn({
   return (
     <section className="flex h-full min-h-0 flex-col">
       <ColumnHeader label="Tasks" color={subBannerColor}>
-        <button type="button" onClick={startAdding} className={ADD_BUTTON_CLASS}>
-          <ListTodo size={16} /> New Task
-        </button>
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={onOpenSearchTasksDialog}
+            title="Search Tasks"
+            aria-label="Search Tasks"
+            className={ICON_BUTTON_CLASS}
+          >
+            <Search size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenUnfinishedTasksDialog}
+            title="Unfinished Tasks"
+            aria-label="Unfinished Tasks"
+            className={ICON_BUTTON_CLASS}
+          >
+            <History size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenTaskExport}
+            title="Export Tasks"
+            aria-label="Export Tasks"
+            className={ICON_BUTTON_CLASS}
+          >
+            <ListChecks size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={renumberDay}
+            disabled={renumbering}
+            title={
+              renumbering
+                ? "Renumbering..."
+                : "Re-sort each priority group's incomplete tasks and compact their numbers, starting at 1"
+            }
+            aria-label="Renumber"
+            className={ICON_BUTTON_CLASS}
+          >
+            <ListOrdered size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoveDialogTarget("unfinished")}
+            title="Move unfinished tasks to another date"
+            aria-label="Move unfinished"
+            className={ICON_BUTTON_CLASS}
+          >
+            <ArrowLeftRight size={16} />
+          </button>
+          <button type="button" onClick={startAdding} className={ADD_BUTTON_CLASS}>
+            <ListTodo size={16} /> New Task
+          </button>
+        </div>
       </ColumnHeader>
 
-      <div className="mb-2 flex items-center justify-between px-1">
+      <div className="mb-2 flex items-center px-1">
         <label className="flex items-center gap-2 text-sm text-slate-500">
           <input
             type="checkbox"
@@ -267,24 +334,6 @@ export function TasksColumn({
           />
           Show completed
         </label>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={renumberDay}
-            disabled={renumbering}
-            title="Re-sort each priority group's incomplete tasks and compact their numbers, starting at 1"
-            className="flex w-fit items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <ListOrdered size={16} /> {renumbering ? "Renumbering..." : "Renumber"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMoveDialogTarget("unfinished")}
-            className="flex w-fit items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
-          >
-            <ArrowLeftRight size={16} /> Move unfinished
-          </button>
-        </div>
       </div>
 
       {!isMobile && selectedIds.size > 0 && (

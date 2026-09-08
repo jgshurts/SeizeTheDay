@@ -196,6 +196,9 @@ export function MainPage() {
       onUpdateTask={updateTask}
       onDeleteTask={deleteTask}
       onRenumberDay={renumberDay}
+      onOpenUnfinishedTasksDialog={() => setUnfinishedTasksOpen(true)}
+      onOpenSearchTasksDialog={() => setSearchOpen(true)}
+      onOpenTaskExport={() => setCompletedTasksOpen(true)}
       subBannerColor={user?.themeSubBannerColor}
     />
   );
@@ -250,9 +253,6 @@ export function MainPage() {
         activeDate={activeDate}
         onDateChange={setActiveDate}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenCompletedTasks={() => setCompletedTasksOpen(true)}
-        onOpenUnfinishedTasks={() => setUnfinishedTasksOpen(true)}
-        onOpenSearch={() => setSearchOpen(true)}
         showSchedule={showSchedule}
         onShowScheduleChange={setShowSchedule}
         projects={projects}
