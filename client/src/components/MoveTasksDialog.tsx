@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Modal } from "./Modal";
-import { formatDisplay } from "../lib/date";
-import { defaultMoveDate } from "../lib/moveDate";
 import { confirmMoveIfComplete } from "../lib/confirmMove";
 import type { Task } from "../types";
 
@@ -14,7 +12,14 @@ export interface TaskMove {
 interface MoveTasksDialogProps {
   title: string;
   emptyMessage: string;
-  activeDate: string;
+  // The default date pre-filled into the "to" field -- callers compute this
+  // (e.g. via defaultMoveDate) since what counts as "the source date" varies:
+  // a single day for Move Unfinished/Selected, but no single date at all for
+  // a cross-day list like Unfinished Tasks.
+  initialDate: string;
+  // Optional "from <label>" clause naming where these tasks are coming from.
+  // Omitted entirely when the tasks don't share one source date.
+  sourceLabel?: string;
   tasks: Task[];
   onMove: (moves: TaskMove[]) => Promise<void>;
   onClose: () => void;
@@ -23,12 +28,13 @@ interface MoveTasksDialogProps {
 export function MoveTasksDialog({
   title,
   emptyMessage,
-  activeDate,
+  initialDate,
+  sourceLabel,
   tasks,
   onMove,
   onClose,
 }: MoveTasksDialogProps) {
-  const [globalDate, setGlobalDate] = useState(() => defaultMoveDate(activeDate));
+  const [globalDate, setGlobalDate] = useState(initialDate);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [moving, setMoving] = useState(false);
 
@@ -67,7 +73,8 @@ export function MoveTasksDialog({
         <>
           <label className="mb-1 block text-sm font-medium text-slate-600" htmlFor="move-date">
             Move {tasks.length} task
-            {tasks.length === 1 ? "" : "s"} from {formatDisplay(activeDate)} to:
+            {tasks.length === 1 ? "" : "s"}
+            {sourceLabel ? ` from ${sourceLabel}` : ""} to:
           </label>
           <input
             id="move-date"

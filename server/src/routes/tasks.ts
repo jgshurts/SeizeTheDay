@@ -6,6 +6,12 @@ import { parseDateParam } from "../lib/date";
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
 
+const TASK_INCLUDE = { status: true, priorityGroup: true, blockerNote: true, project: true } as const;
+
+// "Incomplete" everywhere in this file means the same thing: no status at
+// all, or an explicit status not flagged isComplete.
+const INCOMPLETE_FILTER = { OR: [{ status: null }, { status: { isComplete: false } }] };
+
 // Default sort order: status.ordinal (lets completed statuses sort to the
 // bottom regardless of their code), priorityGroup.prty, then the task's own
 // prtyOrdinal (application.md calls this "Task.prty").
@@ -20,15 +26,65 @@ tasksRouter.get("/", async (req, res) => {
   const tasks = await prisma.task.findMany({
     where: {
       datePlanned,
-      ...(includeCompleted ? {} : { OR: [{ status: null }, { status: { isComplete: false } }] }),
+      ...(includeCompleted ? {} : INCOMPLETE_FILTER),
       ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
     },
-    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
+    include: TASK_INCLUDE,
     orderBy: [
       { status: { ordinal: "asc" } },
       { priorityGroup: { prty: "asc" } },
       { prtyOrdinal: "asc" },
     ],
+  });
+
+  res.json(tasks);
+});
+
+// Every incomplete task left behind before a given date, regardless of how
+// long ago it was planned -- lets a user who was away catch tasks that
+// scrolled out of the single-day view entirely rather than hunting one day
+// at a time. Oldest first, so the longest-neglected tasks surface at top.
+tasksRouter.get("/unfinished", async (req, res) => {
+  const before = parseDateParam(req.query.before);
+  if (!before) {
+    return res.status(400).json({ error: "Query param 'before' must be YYYY-MM-DD" });
+  }
+  const { projectId } = req.query;
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      datePlanned: { lt: before },
+      ...INCOMPLETE_FILTER,
+      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+    },
+    include: TASK_INCLUDE,
+    orderBy: [
+      { datePlanned: "asc" },
+      { priorityGroup: { prty: "asc" } },
+      { prtyOrdinal: "asc" },
+    ],
+  });
+
+  res.json(tasks);
+});
+
+// Free-text search across every task regardless of date, for finding one
+// that's fallen out of view. Substring, case-insensitive.
+tasksRouter.get("/search", async (req, res) => {
+  const { q, projectId, includeCompleted } = req.query;
+  if (typeof q !== "string" || !q.trim()) {
+    return res.status(400).json({ error: "Query param 'q' is required" });
+  }
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      description: { contains: q.trim(), mode: "insensitive" },
+      ...(includeCompleted === "false" ? INCOMPLETE_FILTER : {}),
+      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+    },
+    include: TASK_INCLUDE,
+    orderBy: [{ datePlanned: "desc" }],
+    take: 200,
   });
 
   res.json(tasks);
@@ -47,11 +103,7 @@ tasksRouter.get("/export", async (req, res) => {
     return res.status(400).json({ error: "status must be 'complete', 'incomplete', or 'all'" });
   }
   const statusFilter =
-    status === "incomplete"
-      ? { OR: [{ status: null }, { status: { isComplete: false } }] }
-      : status === "all"
-        ? {}
-        : { completedAt: { not: null } };
+    status === "incomplete" ? INCOMPLETE_FILTER : status === "all" ? {} : { completedAt: { not: null } };
 
   const start = parseDateParam(startDate);
   const end = parseDateParam(endDate);
@@ -91,7 +143,7 @@ tasksRouter.get("/export", async (req, res) => {
         typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {},
       ],
     },
-    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
+    include: TASK_INCLUDE,
     orderBy: [
       { completedAt: "desc" },
       { priorityGroup: { prty: "asc" } },
@@ -134,7 +186,7 @@ tasksRouter.post("/", async (req: AuthedRequest, res) => {
       statusId: resolvedStatusId,
       prtyOrdinal: typeof prtyOrdinal === "number" ? prtyOrdinal : null,
     },
-    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
+    include: TASK_INCLUDE,
   });
 
   res.status(201).json(task);
@@ -152,7 +204,7 @@ async function renumberPriorityGroup(datePlanned: Date, priorityGroupId: bigint)
       datePlanned,
       priorityGroupId,
       prtyOrdinal: { not: null },
-      OR: [{ status: null }, { status: { isComplete: false } }],
+      ...INCOMPLETE_FILTER,
     },
     orderBy: { prtyOrdinal: "asc" },
   });
@@ -185,7 +237,7 @@ tasksRouter.post("/renumber", async (req, res) => {
       datePlanned,
       priorityGroupId: { not: null },
       prtyOrdinal: { not: null },
-      OR: [{ status: null }, { status: { isComplete: false } }],
+      ...INCOMPLETE_FILTER,
     },
     select: { priorityGroupId: true },
     distinct: ["priorityGroupId"],
@@ -238,7 +290,7 @@ tasksRouter.patch("/:id", async (req, res) => {
         : {}),
       ...completedAtUpdate,
     },
-    include: { status: true, priorityGroup: true, blockerNote: true, project: true },
+    include: TASK_INCLUDE,
   });
 
   // A move onto a new day renumbers that day's priority group so the moved
@@ -250,7 +302,7 @@ tasksRouter.patch("/:id", async (req, res) => {
     await renumberPriorityGroup(task.datePlanned, task.priorityGroupId);
     const refreshed = await prisma.task.findUnique({
       where: { id },
-      include: { status: true, priorityGroup: true, blockerNote: true, project: true },
+      include: TASK_INCLUDE,
     });
     return res.json(refreshed);
   }

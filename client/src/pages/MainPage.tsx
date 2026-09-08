@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Banner } from "../components/Banner";
 import { CompletedTasksReport } from "../components/CompletedTasksReport";
+import { UnfinishedTasksDialog } from "../components/UnfinishedTasksDialog";
+import { SearchTasksDialog } from "../components/SearchTasksDialog";
 import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
 import { ScheduleColumn } from "../components/ScheduleColumn";
@@ -57,6 +59,8 @@ export function MainPage() {
   const [activeDate, setActiveDate] = useState(() => toLocalDateKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [completedTasksOpen, setCompletedTasksOpen] = useState(false);
+  const [unfinishedTasksOpen, setUnfinishedTasksOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
@@ -247,6 +251,8 @@ export function MainPage() {
         onDateChange={setActiveDate}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenCompletedTasks={() => setCompletedTasksOpen(true)}
+        onOpenUnfinishedTasks={() => setUnfinishedTasksOpen(true)}
+        onOpenSearch={() => setSearchOpen(true)}
         showSchedule={showSchedule}
         onShowScheduleChange={setShowSchedule}
         projects={projects}
@@ -322,6 +328,21 @@ export function MainPage() {
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {completedTasksOpen && (
         <CompletedTasksReport projects={projects} onClose={() => setCompletedTasksOpen(false)} />
+      )}
+      {unfinishedTasksOpen && (
+        <UnfinishedTasksDialog
+          activeDate={activeDate}
+          projects={projects}
+          onUpdateTask={updateTask}
+          onClose={() => setUnfinishedTasksOpen(false)}
+        />
+      )}
+      {searchOpen && (
+        <SearchTasksDialog
+          projects={projects}
+          onGoToDate={setActiveDate}
+          onClose={() => setSearchOpen(false)}
+        />
       )}
     </div>
   );

@@ -1,4 +1,13 @@
-import { CalendarClock, ChevronLeft, ChevronRight, ListChecks, LogOut, Settings } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  ListChecks,
+  LogOut,
+  Search,
+  Settings,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { addDays, formatWeekday, toLocalDateKey } from "../lib/date";
 import { readableTextColor } from "../lib/color";
@@ -11,6 +20,8 @@ interface BannerProps {
   onDateChange: (date: string) => void;
   onOpenSettings: () => void;
   onOpenCompletedTasks: () => void;
+  onOpenUnfinishedTasks: () => void;
+  onOpenSearch: () => void;
   showSchedule: boolean;
   onShowScheduleChange: (show: boolean) => void;
   projects: Project[];
@@ -24,6 +35,8 @@ export function Banner({
   onDateChange,
   onOpenSettings,
   onOpenCompletedTasks,
+  onOpenUnfinishedTasks,
+  onOpenSearch,
   showSchedule,
   onShowScheduleChange,
   projects,
@@ -117,6 +130,24 @@ export function Banner({
       </div>
 
       <div className={`flex items-center ${compact ? "gap-1" : "gap-3"}`}>
+        <button
+          type="button"
+          aria-label="Search Tasks"
+          title="Search Tasks"
+          onClick={onOpenSearch}
+          className={`rounded text-white hover:bg-emerald-700 ${compact ? "p-0.5" : "p-1"}`}
+        >
+          <Search size={compact ? 16 : 18} />
+        </button>
+        <button
+          type="button"
+          aria-label="Unfinished Tasks"
+          title="Unfinished Tasks"
+          onClick={onOpenUnfinishedTasks}
+          className={`rounded text-white hover:bg-emerald-700 ${compact ? "p-0.5" : "p-1"}`}
+        >
+          <History size={compact ? 16 : 18} />
+        </button>
         <button
           type="button"
           aria-label={showSchedule ? "Hide schedule" : "Show schedule"}

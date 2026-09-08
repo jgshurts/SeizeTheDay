@@ -3,6 +3,7 @@ import { ArrowLeftRight, ListOrdered, ListTodo, OctagonAlert, Trash2 } from "luc
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { useIsMobile } from "../lib/useIsMobile";
 import { addDays, formatDisplay } from "../lib/date";
+import { defaultMoveDate } from "../lib/moveDate";
 import { api } from "../lib/api";
 import { MoveTasksDialog } from "./MoveTasksDialog";
 import type { TaskMove } from "./MoveTasksDialog";
@@ -545,7 +546,8 @@ export function TasksColumn({
               ? `No unfinished tasks on ${formatDisplay(activeDate)}.`
               : "No tasks selected."
           }
-          activeDate={activeDate}
+          initialDate={defaultMoveDate(activeDate)}
+          sourceLabel={formatDisplay(activeDate)}
           tasks={moveDialogTarget === "unfinished" ? unfinishedTasks : selectedTasks}
           onMove={async (moves) => {
             await moveTasks(moves);
