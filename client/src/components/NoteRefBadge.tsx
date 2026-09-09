@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Markdown from "react-markdown";
 import { api, ApiError } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
+import { lighten } from "../lib/color";
+import { DEFAULT_SUB_BANNER_COLOR } from "./ColumnHeader";
 import type { Note } from "../types";
+
+// 20% lighter than the user's theme background (or the app default, if they
+// haven't set one) -- readable black-on-light instead of the previous fixed
+// gray-on-black, and still visually tied to their chosen theme.
+const POPUP_LIGHTEN_PERCENT = 20;
 
 interface NoteRefBadgeProps {
   shortRef: string;
@@ -40,6 +48,11 @@ function fetchNoteByRef(shortRef: string): Promise<Note | null> {
 // because it otherwise ends up nested inside ancestors that clip it (a
 // truncated task-description cell, the tasks table's scrolling wrapper).
 export function NoteRefBadge({ shortRef }: NoteRefBadgeProps) {
+  const { user } = useAuth();
+  const popupBackground = lighten(
+    user?.themeBackgroundColor ?? DEFAULT_SUB_BANNER_COLOR,
+    POPUP_LIGHTEN_PERCENT,
+  );
   const [state, setState] = useState<RefState>({ status: "idle" });
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -98,24 +111,24 @@ export function NoteRefBadge({ shortRef }: NoteRefBadgeProps) {
           <div
             role="tooltip"
             onClick={(e) => e.stopPropagation()}
-            style={{ top: position.top, left: position.left }}
-            className="fixed z-50 w-[640px] max-w-[90vw] rounded bg-slate-800 px-2 py-1.5 text-left text-xs normal-case text-slate-100 shadow-lg"
+            style={{ top: position.top, left: position.left, backgroundColor: popupBackground }}
+            className="fixed z-50 w-[640px] max-w-[90vw] rounded px-2 py-1.5 text-left text-xs normal-case text-black shadow-lg"
           >
             {state.status === "loading" && "Loading..."}
             {state.status === "error" && "Failed to load note."}
             {state.status === "not-found" && `No note found for @${shortRef}.`}
             {state.status === "found" && (
               <div className="space-y-1">
-                <div className="flex items-center justify-between text-slate-400">
+                <div className="flex items-center justify-between text-slate-600">
                   <span>{new Date(state.note.createdAt).toLocaleDateString()}</span>
                   {state.note.project && <span>{state.note.project.name}</span>}
                 </div>
                 {state.note.noteText ? (
-                  <div className="prose prose-invert prose-sm max-w-none [&>*]:my-0.5">
+                  <div className="prose prose-sm max-w-none text-black [&>*]:my-0.5">
                     <Markdown>{state.note.noteText}</Markdown>
                   </div>
                 ) : (
-                  <span className="italic text-slate-400">No note text</span>
+                  <span className="italic text-slate-600">No note text</span>
                 )}
               </div>
             )}
