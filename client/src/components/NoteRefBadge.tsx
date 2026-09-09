@@ -104,17 +104,17 @@ export function NoteRefBadge({ shortRef }: NoteRefBadgeProps) {
               top: position.top,
               left: position.left,
               backgroundColor: activeBackground,
-              // A mostly-opaque white sheet over the active background color
+              // A translucent white sheet over the active background color
               // (same veil-over-color trick as MainPage's panelBackgroundStyle)
               // rather than computing a lightened hex -- lets the popup track
               // the active background (theme, or a selected project's tint)
-              // without duplicating MainPage's color math here. High opacity
-              // because activeBackground itself can be a translucent project
-              // tint (meant to sit over MainPage's own white canvas) -- at
-              // low opacity that let whatever's behind this portaled popup
-              // bleed through it too.
-              backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8))",
-              // Blurs whatever's still visible through that 20% gap,
+              // without duplicating MainPage's color math here. The backdrop
+              // blur below (rather than higher opacity here) is what keeps
+              // whatever's behind this portaled popup from showing through
+              // sharply -- activeBackground itself can be a translucent
+              // project tint, meant to sit over MainPage's own white canvas.
+              backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6))",
+              // Blurs whatever's still visible through the 40% gap above,
               // independent of the layers' own opacity -- WebkitBackdropFilter
               // for Safari, which doesn't support the unprefixed property.
               backdropFilter: "blur(6px)",
