@@ -99,7 +99,7 @@ export function NoteRefBadge({ shortRef }: NoteRefBadgeProps) {
             role="tooltip"
             onClick={(e) => e.stopPropagation()}
             style={{ top: position.top, left: position.left }}
-            className="fixed z-50 w-64 rounded bg-slate-800 px-2 py-1.5 text-left text-xs normal-case text-slate-100 shadow-lg"
+            className="fixed z-50 w-[640px] max-w-[90vw] rounded bg-slate-800 px-2 py-1.5 text-left text-xs normal-case text-slate-100 shadow-lg"
           >
             {state.status === "loading" && "Loading..."}
             {state.status === "error" && "Failed to load note."}
