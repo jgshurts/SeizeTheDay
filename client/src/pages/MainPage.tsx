@@ -14,6 +14,7 @@ import { sortTasks } from "../lib/taskSort";
 import { useIsMobile } from "../lib/useIsMobile";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { ActiveBackgroundProvider } from "../context/ActiveBackgroundContext";
 import { withAlpha } from "../lib/color";
 import type { PriorityGroup, Project, Status, Task } from "../types";
 
@@ -245,105 +246,107 @@ export function MainPage() {
     : user?.themeBackgroundColor;
 
   return (
-    <div
-      className="flex h-dvh flex-col bg-slate-50"
-      style={backgroundColor ? { backgroundColor } : undefined}
-    >
-      <Banner
-        activeDate={activeDate}
-        onDateChange={setActiveDate}
-        onOpenSettings={() => setSettingsOpen(true)}
-        showSchedule={showSchedule}
-        onShowScheduleChange={setShowSchedule}
-        projects={projects}
-        contextProjectId={contextProjectId}
-        onContextProjectChange={setContextProjectId}
-        compact={isMobile}
-      />
-
-      {isMobile ? (
-        <>
-          <div className="flex border-b border-slate-200 bg-white">
-            {(["tasks", "schedule", "notes"] as const)
-              .filter((tab) => tab !== "schedule" || showSchedule)
-              .map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setMobileTab(tab)}
-                className={`flex-1 py-2 text-sm font-medium capitalize ${
-                  effectiveMobileTab === tab
-                    ? "border-b-2 border-indigo-600 text-indigo-700"
-                    : "text-slate-500"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <main
-            className="min-h-0 flex-1 overflow-hidden p-3"
-            style={panelBackgroundStyle(
-              effectiveMobileTab === "notes" ? user?.themeRightImage : user?.themeLeftImage,
-            )}
-          >
-            {effectiveMobileTab === "tasks" && tasksColumn}
-            {effectiveMobileTab === "schedule" && scheduleColumn}
-            {effectiveMobileTab === "notes" && notesColumn}
-          </main>
-        </>
-      ) : (
-        <main
-          ref={splitContainerRef}
-          className={`flex min-h-0 flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
-        >
-          <div
-            style={{ width: `${taskColumnWidth}%`, ...panelBackgroundStyle(user?.themeLeftImage) }}
-            className="min-h-0 overflow-hidden pr-2"
-          >
-            {tasksAndSchedule}
-          </div>
-
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize Tasks and Notes columns"
-            onMouseDown={() => setIsDraggingSplit(true)}
-            className="w-1 shrink-0 cursor-col-resize self-stretch rounded bg-slate-200 hover:bg-indigo-300 active:bg-indigo-400"
-          />
-
-          <div
-            style={{
-              width: `${100 - taskColumnWidth}%`,
-              ...panelBackgroundStyle(user?.themeRightImage),
-            }}
-            className="min-h-0 overflow-hidden pl-2"
-          >
-            {notesColumn}
-          </div>
-        </main>
-      )}
-
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
-      {completedTasksOpen && (
-        <CompletedTasksReport projects={projects} onClose={() => setCompletedTasksOpen(false)} />
-      )}
-      {unfinishedTasksOpen && (
-        <UnfinishedTasksDialog
+    <ActiveBackgroundProvider color={backgroundColor}>
+      <div
+        className="flex h-dvh flex-col bg-slate-50"
+        style={backgroundColor ? { backgroundColor } : undefined}
+      >
+        <Banner
           activeDate={activeDate}
+          onDateChange={setActiveDate}
+          onOpenSettings={() => setSettingsOpen(true)}
+          showSchedule={showSchedule}
+          onShowScheduleChange={setShowSchedule}
           projects={projects}
-          onUpdateTask={updateTask}
-          onClose={() => setUnfinishedTasksOpen(false)}
+          contextProjectId={contextProjectId}
+          onContextProjectChange={setContextProjectId}
+          compact={isMobile}
         />
-      )}
-      {searchOpen && (
-        <SearchTasksDialog
-          projects={projects}
-          onGoToDate={setActiveDate}
-          onClose={() => setSearchOpen(false)}
-        />
-      )}
-    </div>
+
+        {isMobile ? (
+          <>
+            <div className="flex border-b border-slate-200 bg-white">
+              {(["tasks", "schedule", "notes"] as const)
+                .filter((tab) => tab !== "schedule" || showSchedule)
+                .map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setMobileTab(tab)}
+                  className={`flex-1 py-2 text-sm font-medium capitalize ${
+                    effectiveMobileTab === tab
+                      ? "border-b-2 border-indigo-600 text-indigo-700"
+                      : "text-slate-500"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <main
+              className="min-h-0 flex-1 overflow-hidden p-3"
+              style={panelBackgroundStyle(
+                effectiveMobileTab === "notes" ? user?.themeRightImage : user?.themeLeftImage,
+              )}
+            >
+              {effectiveMobileTab === "tasks" && tasksColumn}
+              {effectiveMobileTab === "schedule" && scheduleColumn}
+              {effectiveMobileTab === "notes" && notesColumn}
+            </main>
+          </>
+        ) : (
+          <main
+            ref={splitContainerRef}
+            className={`flex min-h-0 flex-1 overflow-hidden p-4 ${isDraggingSplit ? "select-none" : ""}`}
+          >
+            <div
+              style={{ width: `${taskColumnWidth}%`, ...panelBackgroundStyle(user?.themeLeftImage) }}
+              className="min-h-0 overflow-hidden pr-2"
+            >
+              {tasksAndSchedule}
+            </div>
+
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize Tasks and Notes columns"
+              onMouseDown={() => setIsDraggingSplit(true)}
+              className="w-1 shrink-0 cursor-col-resize self-stretch rounded bg-slate-200 hover:bg-indigo-300 active:bg-indigo-400"
+            />
+
+            <div
+              style={{
+                width: `${100 - taskColumnWidth}%`,
+                ...panelBackgroundStyle(user?.themeRightImage),
+              }}
+              className="min-h-0 overflow-hidden pl-2"
+            >
+              {notesColumn}
+            </div>
+          </main>
+        )}
+
+        {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+        {completedTasksOpen && (
+          <CompletedTasksReport projects={projects} onClose={() => setCompletedTasksOpen(false)} />
+        )}
+        {unfinishedTasksOpen && (
+          <UnfinishedTasksDialog
+            activeDate={activeDate}
+            projects={projects}
+            onUpdateTask={updateTask}
+            onClose={() => setUnfinishedTasksOpen(false)}
+          />
+        )}
+        {searchOpen && (
+          <SearchTasksDialog
+            projects={projects}
+            onGoToDate={setActiveDate}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
+      </div>
+    </ActiveBackgroundProvider>
   );
 }

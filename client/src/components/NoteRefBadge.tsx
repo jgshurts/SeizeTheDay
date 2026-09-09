@@ -2,15 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Markdown from "react-markdown";
 import { api, ApiError } from "../lib/api";
-import { useAuth } from "../context/AuthContext";
-import { lighten } from "../lib/color";
-import { DEFAULT_SUB_BANNER_COLOR } from "./ColumnHeader";
+import { useActiveBackground } from "../context/ActiveBackgroundContext";
 import type { Note } from "../types";
-
-// 20% lighter than the user's theme background (or the app default, if they
-// haven't set one) -- readable black-on-light instead of the previous fixed
-// gray-on-black, and still visually tied to their chosen theme.
-const POPUP_LIGHTEN_PERCENT = 20;
 
 interface NoteRefBadgeProps {
   shortRef: string;
@@ -48,11 +41,7 @@ function fetchNoteByRef(shortRef: string): Promise<Note | null> {
 // because it otherwise ends up nested inside ancestors that clip it (a
 // truncated task-description cell, the tasks table's scrolling wrapper).
 export function NoteRefBadge({ shortRef }: NoteRefBadgeProps) {
-  const { user } = useAuth();
-  const popupBackground = lighten(
-    user?.themeBackgroundColor ?? DEFAULT_SUB_BANNER_COLOR,
-    POPUP_LIGHTEN_PERCENT,
-  );
+  const activeBackground = useActiveBackground();
   const [state, setState] = useState<RefState>({ status: "idle" });
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -111,7 +100,26 @@ export function NoteRefBadge({ shortRef }: NoteRefBadgeProps) {
           <div
             role="tooltip"
             onClick={(e) => e.stopPropagation()}
-            style={{ top: position.top, left: position.left, backgroundColor: popupBackground }}
+            style={{
+              top: position.top,
+              left: position.left,
+              backgroundColor: activeBackground,
+              // A mostly-opaque white sheet over the active background color
+              // (same veil-over-color trick as MainPage's panelBackgroundStyle)
+              // rather than computing a lightened hex -- lets the popup track
+              // the active background (theme, or a selected project's tint)
+              // without duplicating MainPage's color math here. High opacity
+              // because activeBackground itself can be a translucent project
+              // tint (meant to sit over MainPage's own white canvas) -- at
+              // low opacity that let whatever's behind this portaled popup
+              // bleed through it too.
+              backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8))",
+              // Blurs whatever's still visible through that 20% gap,
+              // independent of the layers' own opacity -- WebkitBackdropFilter
+              // for Safari, which doesn't support the unprefixed property.
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+            }}
             className="fixed z-50 w-[640px] max-w-[90vw] rounded px-2 py-1.5 text-left text-xs normal-case text-black shadow-lg"
           >
             {state.status === "loading" && "Loading..."}

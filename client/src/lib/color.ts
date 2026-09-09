@@ -8,17 +8,6 @@ export function withAlpha(hex: string, alphaHex: string): string {
   return `${hex}${alphaHex}`;
 }
 
-// Mixes a hex color toward white by `percent` (0-100) -- used to derive a
-// lighter tint of a user's theme color rather than hardcoding one.
-export function lighten(hex: string, percent: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const mix = (c: number) => Math.round(c + (255 - c) * (percent / 100));
-  const toHex = (c: number) => c.toString(16).padStart(2, "0");
-  return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
-}
-
 // Picks black or white text for readability against a solid hex background,
 // via the standard perceptual-luminance threshold.
 export function readableTextColor(hex: string): string {
