@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Download } from "lucide-react";
 import { Modal } from "./Modal";
 import { api } from "../lib/api";
-import { addDays, toLocalDateKey } from "../lib/date";
+import { addDays, formatDisplay, toLocalDateKey } from "../lib/date";
 import type { Project, Task } from "../types";
 
 type StatusFilter = "complete" | "incomplete" | "all";
@@ -31,18 +31,10 @@ const COLUMNS: Column[] = [
   { key: "project", label: "Project" },
 ];
 
-// A task's "relevant date" for display/sort/filter purposes: when it was
-// completed, or (for a still-open task) when it's scheduled -- so a single
-// date-oriented column and range filter makes sense across all three
-// status filters instead of leaving incomplete tasks dateless.
-function relevantDate(task: Task): string {
-  return task.completedAt ?? task.datePlanned;
-}
-
 function sortValue(task: Task, key: SortKey): string | number {
   switch (key) {
     case "date":
-      return relevantDate(task);
+      return task.datePlanned;
     case "status":
       return task.status?.statusCode ?? "";
     case "priorityGroup":
@@ -67,36 +59,14 @@ function sortTasks(tasks: Task[], key: SortKey, direction: SortDirection): Task[
   });
 }
 
-// completedAt is a real timestamp -- read its date in the browser's local
-// time zone. datePlanned, when there's no completedAt, is a UTC-midnight
-// date key (like every other datePlanned in the app) -- reading that one in
-// local time would shift it a day near a UTC midnight boundary, so it's
-// read in UTC instead, the same way lib/date's formatDisplay does.
-function relevantDateParts(task: Task): { year: number; month: number; day: number } {
-  if (task.completedAt) {
-    const d = new Date(task.completedAt);
-    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
-  }
-  const d = new Date(task.datePlanned);
-  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
-}
-
-function formatRelevantDate(task: Task): string {
-  const { year, month, day } = relevantDateParts(task);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    weekday: "short",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 // mm/dd/yyyy -- Excel only recognizes a cell as a sortable date in this (or
 // its own locale's) numeric form, not the "Mon, Sep 1, 2026" display format
 // used in the on-screen table.
-function formatRelevantDateForExport(task: Task): string {
-  const { year, month, day } = relevantDateParts(task);
-  return `${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}/${year}`;
+function formatDatePlannedForExport(datePlanned: string): string {
+  const d = new Date(datePlanned);
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${month}/${day}/${d.getUTCFullYear()}`;
 }
 
 // The status codes are single expressive characters on screen (√, x, >, -),
@@ -126,7 +96,7 @@ function csvField(value: string): string {
 function downloadCsv(tasks: Task[]): void {
   const header = ["Date", "Status", "Priority Group", "Priority", "Description", "Project"];
   const rows = tasks.map((t) => [
-    formatRelevantDateForExport(t),
+    formatDatePlannedForExport(t.datePlanned),
     statusLabelForExport(t.status?.statusCode),
     t.priorityGroup?.prtyCode ?? "",
     t.prtyOrdinal != null ? String(t.prtyOrdinal) : "",
@@ -280,7 +250,7 @@ export function CompletedTasksReport({
               {sorted.map((t) => (
                 <tr key={t.id} className="border-b border-slate-100 last:border-0">
                   <td className="whitespace-nowrap px-2 py-1.5 text-slate-700">
-                    {formatRelevantDate(t)}
+                    {formatDisplay(t.datePlanned.slice(0, 10))}
                   </td>
                   <td className="px-2 py-1.5">
                     <span

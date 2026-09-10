@@ -91,11 +91,12 @@ tasksRouter.get("/search", async (req, res) => {
 });
 
 // Task export report: tasks regardless of datePlanned, filtered by
-// completion status, for the Task Export dialog. A task's "relevant date"
-// is completedAt when it has one, else datePlanned -- so the date range
-// filters/sorts complete tasks by when they were finished and incomplete
-// ones by when they're scheduled, letting one range make sense across all
-// three status filters instead of leaving incomplete tasks dateless.
+// completion status, for the Task Export dialog. The date range filters on
+// datePlanned (the one date every task actually has, and the field the rest
+// of the app organizes around) rather than completedAt -- a task planned
+// and completed the same local day can still land on the "wrong" side of a
+// completedAt-based UTC range depending on time zone and time of day, which
+// is confusing when every other date in this app means "planned for".
 tasksRouter.get("/export", async (req, res) => {
   const { projectId, startDate, endDate, status } = req.query;
 
@@ -113,39 +114,20 @@ tasksRouter.get("/export", async (req, res) => {
   // end is inclusive of the whole calendar day, so the range's upper bound
   // is the start of the following day.
   const endExclusive = end ? new Date(end.getTime() + 24 * 60 * 60 * 1000) : undefined;
-  const dateRangeFilter =
+  const datePlannedFilter =
     start || endExclusive
-      ? {
-          OR: [
-            {
-              completedAt: {
-                not: null,
-                ...(start ? { gte: start } : {}),
-                ...(endExclusive ? { lt: endExclusive } : {}),
-              },
-            },
-            {
-              completedAt: null,
-              datePlanned: {
-                ...(start ? { gte: start } : {}),
-                ...(endExclusive ? { lt: endExclusive } : {}),
-              },
-            },
-          ],
-        }
+      ? { datePlanned: { ...(start ? { gte: start } : {}), ...(endExclusive ? { lt: endExclusive } : {}) } }
       : {};
 
   const tasks = await prisma.task.findMany({
     where: {
-      AND: [
-        statusFilter,
-        dateRangeFilter,
-        typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {},
-      ],
+      ...statusFilter,
+      ...datePlannedFilter,
+      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
     },
     include: TASK_INCLUDE,
     orderBy: [
-      { completedAt: "desc" },
+      { datePlanned: "desc" },
       { priorityGroup: { prty: "asc" } },
       { prtyOrdinal: "asc" },
     ],
