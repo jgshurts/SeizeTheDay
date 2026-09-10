@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CalendarClock, MoreVertical, Trash2 } from "lucide-react";
 
 interface TaskActionsMenuProps {
@@ -27,6 +27,14 @@ export function TaskActionsMenu({
 }: TaskActionsMenuProps) {
   const suffix = selectionCount && selectionCount > 1 ? ` (${selectionCount})` : "";
   const ref = useRef<HTMLDivElement>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  // The menu itself stays mounted between opens (only its dropdown content
+  // is conditionally rendered), so a stale confirm from a previous open
+  // would otherwise still be showing next time this menu opens.
+  useEffect(() => {
+    if (!open) setConfirmingDelete(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,16 +82,38 @@ export function TaskActionsMenu({
           >
             <CalendarClock size={14} /> Move to date...{suffix}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              onDelete();
-              onClose();
-            }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
-          >
-            <Trash2 size={14} /> Delete{suffix}
-          </button>
+          {confirmingDelete ? (
+            <div className="flex items-center justify-between px-3 py-1.5 text-red-600">
+              <span>Delete{suffix}?</span>
+              <span className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDelete();
+                    onClose();
+                  }}
+                  className="font-medium underline hover:text-red-800"
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(false)}
+                  className="font-medium text-slate-500 underline hover:text-slate-700"
+                >
+                  No
+                </button>
+              </span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-red-600 hover:bg-red-50"
+            >
+              <Trash2 size={14} /> Delete{suffix}
+            </button>
+          )}
         </div>
       )}
     </div>
