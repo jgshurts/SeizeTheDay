@@ -43,10 +43,24 @@ function loadStoredSplit(): number {
   return Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, stored));
 }
 
-const CONTEXT_PROJECT_STORAGE_KEY = "std_context_project_id";
+const CONTEXT_PROJECTS_STORAGE_KEY = "std_context_project_ids";
+// The single-project key this replaced -- read once so an existing filter
+// carries over, then dropped on the next save.
+const LEGACY_CONTEXT_PROJECT_STORAGE_KEY = "std_context_project_id";
 
-function loadStoredContextProjectId(): string | null {
-  return localStorage.getItem(CONTEXT_PROJECT_STORAGE_KEY);
+function loadStoredContextProjectIds(): string[] {
+  const raw = localStorage.getItem(CONTEXT_PROJECTS_STORAGE_KEY);
+  if (raw !== null) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter((id): id is string => typeof id === "string");
+    } catch {
+      // Fall through to "no filter" on a corrupted value.
+    }
+    return [];
+  }
+  const legacy = localStorage.getItem(LEGACY_CONTEXT_PROJECT_STORAGE_KEY);
+  return legacy ? [legacy] : [];
 }
 
 const SHOW_SCHEDULE_STORAGE_KEY = "std_show_schedule";
@@ -68,7 +82,7 @@ export function MainPage() {
   const [priorityGroups, setPriorityGroups] = useState<PriorityGroup[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCompleted, setShowCompleted] = useState(true);
-  const [contextProjectId, setContextProjectId] = useState(loadStoredContextProjectId);
+  const [contextProjectIds, setContextProjectIds] = useState(loadStoredContextProjectIds);
   const [showSchedule, setShowSchedule] = useState(loadStoredShowSchedule);
 
   const [taskColumnWidth, setTaskColumnWidth] = useState(loadStoredSplit);
@@ -91,19 +105,30 @@ export function MainPage() {
   // Persisted so the Banner's project filter survives a refresh, the same
   // way the Tasks/Notes split width already does.
   useEffect(() => {
-    if (contextProjectId) {
-      localStorage.setItem(CONTEXT_PROJECT_STORAGE_KEY, contextProjectId);
+    localStorage.removeItem(LEGACY_CONTEXT_PROJECT_STORAGE_KEY);
+    if (contextProjectIds.length > 0) {
+      localStorage.setItem(CONTEXT_PROJECTS_STORAGE_KEY, JSON.stringify(contextProjectIds));
     } else {
-      localStorage.removeItem(CONTEXT_PROJECT_STORAGE_KEY);
+      localStorage.removeItem(CONTEXT_PROJECTS_STORAGE_KEY);
     }
-  }, [contextProjectId]);
+  }, [contextProjectIds]);
+
+  // The server accepts a comma-separated projectId list and matches any of
+  // them. New tasks/notes default to the first selected project so they stay
+  // visible under the current filter instead of vanishing as project-less.
+  const projectFilterKey = contextProjectIds.join(",");
+  const defaultProjectId = contextProjectIds[0] ?? null;
+  // Task and note project pickers only offer the projects being filtered to --
+  // anything else would move the item straight out of view.
+  const pickableProjects =
+    contextProjectIds.length > 0 ? projects.filter((p) => contextProjectIds.includes(p.id)) : projects;
 
   useEffect(() => {
     localStorage.setItem(SHOW_SCHEDULE_STORAGE_KEY, String(showSchedule));
   }, [showSchedule]);
 
   async function fetchTasks() {
-    const projectParam = contextProjectId ? `&projectId=${contextProjectId}` : "";
+    const projectParam = projectFilterKey ? `&projectId=${projectFilterKey}` : "";
     const fetched = await api.get<Task[]>(
       `/tasks?date=${activeDate}&includeCompleted=${showCompleted}${projectParam}`,
     );
@@ -112,7 +137,7 @@ export function MainPage() {
 
   useEffect(() => {
     fetchTasks();
-  }, [activeDate, showCompleted, contextProjectId]);
+  }, [activeDate, showCompleted, projectFilterKey]);
 
   // Dragging the Tasks/Notes divider. Position is derived straight from the
   // mouse event rather than component state, so there's no stale-closure risk
@@ -149,7 +174,7 @@ export function MainPage() {
       datePlanned: activeDate,
       priorityGroupId,
       prtyOrdinal,
-      projectId: opts?.projectId !== undefined ? opts.projectId : contextProjectId,
+      projectId: opts?.projectId !== undefined ? opts.projectId : defaultProjectId,
     });
     setTasks((prev) => sortTasks([...prev, task]));
     return task;
@@ -190,7 +215,7 @@ export function MainPage() {
       tasks={tasks}
       statuses={statuses}
       priorityGroups={priorityGroups}
-      projects={projects}
+      projects={pickableProjects}
       showCompleted={showCompleted}
       onShowCompletedChange={setShowCompleted}
       onAddTask={(description, projectId) => addTask(description, { projectId })}
@@ -231,16 +256,21 @@ export function MainPage() {
   const notesColumn = (
     <NotesColumn
       activeDate={activeDate}
-      projects={projects}
-      contextProjectId={contextProjectId}
+      projects={pickableProjects}
+      projectFilterKey={projectFilterKey}
+      defaultProjectId={defaultProjectId}
       subBannerColor={user?.themeSubBannerColor}
     />
   );
 
-  // Selecting a project in the Banner tints the whole app with that
+  // Selecting a single project in the Banner tints the whole app with that
   // project's color, taking over from the user's theme background color
   // while it's active -- a strong visual cue for which project is in focus.
-  const contextProjectColor = projects.find((p) => p.id === contextProjectId)?.color;
+  // With several selected there's no one color to pick, so the theme stays.
+  const contextProjectColor =
+    contextProjectIds.length === 1
+      ? projects.find((p) => p.id === contextProjectIds[0])?.color
+      : undefined;
   const backgroundColor = contextProjectColor
     ? withAlpha(contextProjectColor, "33")
     : user?.themeBackgroundColor;
@@ -258,8 +288,8 @@ export function MainPage() {
           showSchedule={showSchedule}
           onShowScheduleChange={setShowSchedule}
           projects={projects}
-          contextProjectId={contextProjectId}
-          onContextProjectChange={setContextProjectId}
+          contextProjectIds={contextProjectIds}
+          onContextProjectIdsChange={setContextProjectIds}
           compact={isMobile}
         />
 

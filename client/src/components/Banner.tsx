@@ -1,10 +1,10 @@
-import { CalendarClock, ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react";
+import { useState } from "react";
+import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { addDays, formatWeekday, toLocalDateKey } from "../lib/date";
 import { readableTextColor } from "../lib/color";
+import { ProjectFilterDialog } from "./ProjectFilterDialog";
 import type { Project } from "../types";
-
-const NONE = "";
 
 interface BannerProps {
   activeDate: string;
@@ -13,8 +13,8 @@ interface BannerProps {
   showSchedule: boolean;
   onShowScheduleChange: (show: boolean) => void;
   projects: Project[];
-  contextProjectId: string | null;
-  onContextProjectChange: (projectId: string | null) => void;
+  contextProjectIds: string[];
+  onContextProjectIdsChange: (projectIds: string[]) => void;
   compact?: boolean;
 }
 
@@ -25,13 +25,25 @@ export function Banner({
   showSchedule,
   onShowScheduleChange,
   projects,
-  contextProjectId,
-  onContextProjectChange,
+  contextProjectIds,
+  onContextProjectIdsChange,
   compact = false,
 }: BannerProps) {
   const { user, logout } = useAuth();
   const bannerColor = user?.themeBannerColor;
-  const contextProjectColor = projects.find((p) => p.id === contextProjectId)?.color;
+  const [projectFilterOpen, setProjectFilterOpen] = useState(false);
+  const selectedProjects = projects.filter((p) => contextProjectIds.includes(p.id));
+  // Only a single selected project can lend the button its color; several
+  // at once fall back to the same amber as a single uncolored project.
+  const contextProjectColor =
+    selectedProjects.length === 1 ? selectedProjects[0].color : null;
+  const projectFilterLabel =
+    contextProjectIds.length === 0
+      ? "All Projects"
+      : selectedProjects.length === 1
+        ? selectedProjects[0].name
+        : `${contextProjectIds.length} Projects`;
+  const isToday = activeDate === toLocalDateKey(new Date());
 
   return (
     <header
@@ -77,19 +89,25 @@ export function Banner({
         <button
           type="button"
           onClick={() => onDateChange(toLocalDateKey(new Date()))}
-          className={`rounded border border-white/40 bg-white/10 font-medium text-white hover:bg-white/25 ${
+          title={isToday ? undefined : "Not viewing today — jump back"}
+          className={`rounded border font-medium ${
+            isToday
+              ? "border-white/40 bg-white/10 text-white hover:bg-white/25"
+              : "border-amber-500 bg-amber-300 text-amber-950 shadow-sm hover:bg-amber-200"
+          } ${
             compact ? "px-1 py-0.5 text-xs" : "px-2 py-1 text-sm"
           }`}
         >
           Today
         </button>
 
-        <select
-          aria-label="Context project"
-          value={contextProjectId ?? NONE}
-          onChange={(e) => onContextProjectChange(e.target.value || null)}
-          className={`rounded border text-sm ${compact ? "max-w-[90px] px-1 py-0.5" : "ml-2 px-2 py-1"} ${
-            contextProjectId
+        <button
+          type="button"
+          aria-label="Filter projects"
+          title={selectedProjects.map((p) => p.name).join(", ") || "All Projects"}
+          onClick={() => setProjectFilterOpen(true)}
+          className={`flex items-center gap-1 rounded border text-sm ${compact ? "max-w-[90px] px-1 py-0.5" : "ml-2 px-2 py-1"} ${
+            contextProjectIds.length > 0
               ? contextProjectColor
                 ? "font-medium"
                 : "border-amber-400 bg-amber-100 font-medium text-amber-800"
@@ -105,13 +123,9 @@ export function Banner({
               : undefined
           }
         >
-          <option value={NONE}>All Projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+          <span className="truncate">{projectFilterLabel}</span>
+          <ChevronDown size={14} className="shrink-0" />
+        </button>
       </div>
 
       <div className={`flex items-center ${compact ? "gap-1" : "gap-3"}`}>
@@ -152,6 +166,15 @@ export function Banner({
           <LogOut size={compact ? 16 : 18} />
         </button>
       </div>
+
+      {projectFilterOpen && (
+        <ProjectFilterDialog
+          projects={projects}
+          selectedIds={contextProjectIds}
+          onApply={onContextProjectIdsChange}
+          onClose={() => setProjectFilterOpen(false)}
+        />
+      )}
     </header>
   );
 }

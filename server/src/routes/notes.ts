@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { parseDateParam } from "../lib/date";
+import { projectIdFilter } from "../lib/projectFilter";
 import { generateUniqueShortRef } from "../lib/noteRefs";
 
 export const notesRouter = Router();
@@ -20,7 +21,7 @@ notesRouter.get("/", async (req, res) => {
   const notes = await prisma.note.findMany({
     where: {
       contextDate,
-      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+      ...projectIdFilter(projectId),
     },
     include: { project: true },
     orderBy: { createdAt: "asc" },

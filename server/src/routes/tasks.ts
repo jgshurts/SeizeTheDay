@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { parseDateParam } from "../lib/date";
+import { projectIdFilter } from "../lib/projectFilter";
 
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
@@ -27,7 +28,7 @@ tasksRouter.get("/", async (req, res) => {
     where: {
       datePlanned,
       ...(includeCompleted ? {} : INCOMPLETE_FILTER),
-      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+      ...projectIdFilter(projectId),
     },
     include: TASK_INCLUDE,
     orderBy: [
@@ -55,7 +56,7 @@ tasksRouter.get("/unfinished", async (req, res) => {
     where: {
       datePlanned: { lt: before },
       ...INCOMPLETE_FILTER,
-      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+      ...projectIdFilter(projectId),
     },
     include: TASK_INCLUDE,
     orderBy: [
@@ -80,7 +81,7 @@ tasksRouter.get("/search", async (req, res) => {
     where: {
       description: { contains: q.trim(), mode: "insensitive" },
       ...(includeCompleted === "false" ? INCOMPLETE_FILTER : {}),
-      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+      ...projectIdFilter(projectId),
     },
     include: TASK_INCLUDE,
     orderBy: [{ datePlanned: "desc" }],
@@ -123,7 +124,7 @@ tasksRouter.get("/export", async (req, res) => {
     where: {
       ...statusFilter,
       ...datePlannedFilter,
-      ...(typeof projectId === "string" && projectId ? { projectId: BigInt(projectId) } : {}),
+      ...projectIdFilter(projectId),
     },
     include: TASK_INCLUDE,
     orderBy: [

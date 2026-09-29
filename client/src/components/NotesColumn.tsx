@@ -73,14 +73,17 @@ const NONE = "";
 interface NotesColumnProps {
   activeDate: string;
   projects: Project[];
-  contextProjectId: string | null;
+  // Comma-separated project ids the Banner is filtering to ("" for all).
+  projectFilterKey: string;
+  defaultProjectId: string | null;
   subBannerColor: string | null | undefined;
 }
 
 export function NotesColumn({
   activeDate,
   projects,
-  contextProjectId,
+  projectFilterKey,
+  defaultProjectId,
   subBannerColor,
 }: NotesColumnProps) {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -88,14 +91,14 @@ export function NotesColumn({
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    const projectParam = contextProjectId ? `&projectId=${contextProjectId}` : "";
+    const projectParam = projectFilterKey ? `&projectId=${projectFilterKey}` : "";
     api.get<Note[]>(`/notes?date=${activeDate}${projectParam}`).then(setNotes);
-  }, [activeDate, contextProjectId]);
+  }, [activeDate, projectFilterKey]);
 
   async function addNote() {
     const note = await api.post<Note>("/notes", {
       contextDate: activeDate,
-      projectId: contextProjectId,
+      projectId: defaultProjectId,
     });
     setNotes((prev) => [...prev, note]);
     setEditingNoteId(note.id);
@@ -112,7 +115,7 @@ export function NotesColumn({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeDate, contextProjectId]);
+  }, [activeDate, defaultProjectId]);
 
   async function updateNote(id: string, patch: Record<string, unknown>) {
     const updated = await api.patch<Note>(`/notes/${id}`, patch);
