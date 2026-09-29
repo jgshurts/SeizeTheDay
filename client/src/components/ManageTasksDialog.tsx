@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Download } from "lucide-react";
 import { Modal } from "./Modal";
+import { MoveTasksDialog } from "./MoveTasksDialog";
 import { api } from "../lib/api";
 import { addDays, formatDisplay, toLocalDateKey } from "../lib/date";
+import { defaultMoveDate } from "../lib/moveDate";
 import type { Project, Task } from "../types";
 
 type StatusFilter = "complete" | "incomplete" | "all";
@@ -114,11 +116,13 @@ function downloadCsv(tasks: Task[]): void {
   URL.revokeObjectURL(url);
 }
 
-export function CompletedTasksReport({
+export function ManageTasksDialog({
   projects,
+  onUpdateTask,
   onClose,
 }: {
   projects: Project[];
+  onUpdateTask: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
 }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -130,21 +134,38 @@ export function CompletedTasksReport({
   const [toDate, setToDate] = useState(() => toLocalDateKey(new Date()));
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [moving, setMoving] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  function fetchTasks() {
     setLoading(true);
     const params = new URLSearchParams();
     params.set("status", statusFilter);
     if (projectId) params.set("projectId", projectId);
     if (fromDate) params.set("startDate", fromDate);
     if (toDate) params.set("endDate", toDate);
-    api
+    return api
       .get<Task[]>(`/tasks/export?${params.toString()}`)
-      .then(setTasks)
+      .then((fetched) => {
+        setTasks(fetched);
+        setSelectedIds((prev) => new Set([...prev].filter((id) => fetched.some((t) => t.id === id))));
+      })
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    fetchTasks();
   }, [statusFilter, projectId, fromDate, toDate]);
 
   const sorted = useMemo(() => sortTasks(tasks, sortKey, sortDirection), [tasks, sortKey, sortDirection]);
+  const selectedTasks = sorted.filter((t) => selectedIds.has(t.id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectedIds.size > 0 && selectedIds.size < sorted.length;
+    }
+  }, [selectedIds, sorted.length]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) {
@@ -155,8 +176,43 @@ export function CompletedTasksReport({
     }
   }
 
+  function toggleSelect(taskId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => (prev.size === sorted.length ? new Set() : new Set(sorted.map((t) => t.id))));
+  }
+
+  async function handleMove(moves: { taskId: string; date: string }[]) {
+    await Promise.all(moves.map(({ taskId, date }) => onUpdateTask(taskId, { datePlanned: date })));
+    setSelectedIds(new Set());
+    await fetchTasks();
+  }
+
+  if (moving) {
+    return (
+      <MoveTasksDialog
+        title="Move Selected Tasks"
+        emptyMessage="No tasks selected."
+        initialDate={defaultMoveDate(toLocalDateKey(new Date()))}
+        tasks={selectedTasks}
+        onMove={handleMove}
+        onClose={() => setMoving(false)}
+      />
+    );
+  }
+
   return (
-    <Modal title="Task Export" onClose={onClose} maxWidthClassName="max-w-[772px]">
+    <Modal title="Manage Tasks" onClose={onClose} maxWidthClassName="max-w-[772px]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -211,15 +267,26 @@ export function CompletedTasksReport({
           </label>
         </div>
 
-        <button
-          type="button"
-          onClick={() => downloadCsv(sorted)}
-          disabled={sorted.length === 0}
-          className="flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Download size={14} />
-          Export to Excel
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMoving(true)}
+            disabled={selectedIds.size === 0}
+            className="rounded border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Move Selected ({selectedIds.size})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => downloadCsv(sorted)}
+            disabled={sorted.length === 0}
+            className="flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={14} />
+            Export to Excel
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -231,6 +298,15 @@ export function CompletedTasksReport({
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-slate-200">
+                <th className="w-6 px-2 py-1.5 text-center">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    aria-label="Select all tasks"
+                    checked={sorted.length > 0 && selectedIds.size === sorted.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 {COLUMNS.map((col) => (
                   <th key={col.key} className="px-2 py-1.5 font-medium text-slate-600">
                     <button
@@ -249,6 +325,14 @@ export function CompletedTasksReport({
             <tbody>
               {sorted.map((t) => (
                 <tr key={t.id} className="border-b border-slate-100 last:border-0">
+                  <td className="px-2 py-1.5 text-center">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${t.description}`}
+                      checked={selectedIds.has(t.id)}
+                      onChange={() => toggleSelect(t.id)}
+                    />
+                  </td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-slate-700">
                     {formatDisplay(t.datePlanned.slice(0, 10))}
                   </td>

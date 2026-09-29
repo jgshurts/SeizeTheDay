@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Banner } from "../components/Banner";
-import { CompletedTasksReport } from "../components/CompletedTasksReport";
+import { ManageTasksDialog } from "../components/ManageTasksDialog";
 import { UnfinishedTasksDialog } from "../components/UnfinishedTasksDialog";
 import { SearchTasksDialog } from "../components/SearchTasksDialog";
 import { TasksColumn } from "../components/TasksColumn";
@@ -59,7 +59,7 @@ export function MainPage() {
   const { user } = useAuth();
   const [activeDate, setActiveDate] = useState(() => toLocalDateKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [completedTasksOpen, setCompletedTasksOpen] = useState(false);
+  const [manageTasksOpen, setManageTasksOpen] = useState(false);
   const [unfinishedTasksOpen, setUnfinishedTasksOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -199,7 +199,7 @@ export function MainPage() {
       onRenumberDay={renumberDay}
       onOpenUnfinishedTasksDialog={() => setUnfinishedTasksOpen(true)}
       onOpenSearchTasksDialog={() => setSearchOpen(true)}
-      onOpenTaskExport={() => setCompletedTasksOpen(true)}
+      onOpenManageTasks={() => setManageTasksOpen(true)}
       subBannerColor={user?.themeSubBannerColor}
     />
   );
@@ -328,8 +328,12 @@ export function MainPage() {
         )}
 
         {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
-        {completedTasksOpen && (
-          <CompletedTasksReport projects={projects} onClose={() => setCompletedTasksOpen(false)} />
+        {manageTasksOpen && (
+          <ManageTasksDialog
+            projects={projects}
+            onUpdateTask={updateTask}
+            onClose={() => setManageTasksOpen(false)}
+          />
         )}
         {unfinishedTasksOpen && (
           <UnfinishedTasksDialog

@@ -41,7 +41,7 @@ interface TasksColumnProps {
   onRenumberDay: () => Promise<void>;
   onOpenUnfinishedTasksDialog: () => void;
   onOpenSearchTasksDialog: () => void;
-  onOpenTaskExport: () => void;
+  onOpenManageTasks: () => void;
   subBannerColor: string | null | undefined;
 }
 
@@ -134,7 +134,7 @@ export function TasksColumn({
   onRenumberDay,
   onOpenUnfinishedTasksDialog,
   onOpenSearchTasksDialog,
-  onOpenTaskExport,
+  onOpenManageTasks,
   subBannerColor,
 }: TasksColumnProps) {
   const [newDescription, setNewDescription] = useState("");
@@ -289,9 +289,9 @@ export function TasksColumn({
           </button>
           <button
             type="button"
-            onClick={onOpenTaskExport}
-            title="Export Tasks"
-            aria-label="Export Tasks"
+            onClick={onOpenManageTasks}
+            title="Manage Tasks"
+            aria-label="Manage Tasks"
             className={ICON_BUTTON_CLASS}
           >
             <Download size={16} />
