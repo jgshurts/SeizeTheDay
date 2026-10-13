@@ -5,11 +5,21 @@ export interface User {
   nickname: string;
   email: string;
   avatarUrl: string | null;
+  isAdmin: boolean;
   themeBannerColor: string | null;
   themeSubBannerColor: string | null;
   themeBackgroundColor: string | null;
   themeLeftImage: string | null;
   themeRightImage: string | null;
+}
+
+// Another user as anyone may see them -- enough to delegate a task to them
+// (GET /users returns more, including email, only to admins).
+export interface UserSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  nickname: string;
 }
 
 export interface CalendarEvent {
@@ -68,10 +78,13 @@ export interface Task {
   priorityGroup: PriorityGroup | null;
   blockerNote: { id: string; shortRef: string | null; noteText: string | null } | null;
   project: Project | null;
+  owner: { id: string; nickname: string };
+  assignee: { id: string; nickname: string };
 }
 
 export interface Note {
   id: string;
+  ownerId: string;
   projectId: string | null;
   shortRef: string | null;
   noteText: string | null;

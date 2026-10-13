@@ -16,7 +16,8 @@ Built end-to-end — schema, API, and UI — as a full-stack TypeScript project.
 - **Keyboard shortcuts** — `Alt/Option+T` (new task), `Alt/Option+N` (new note), `Alt/Option+M` (move unfinished tasks) — chosen deliberately to avoid the browser's own reserved `Ctrl/Cmd` shortcuts.
 - **Auth** — "Sign in with Google" (OAuth), JWT-based session that lasts as long as the browser tab is open. The same Google grant also authorizes read access to Calendar, so there's no separate calendar-connection step.
 - **Schedule column** — a read-only view of the active day's Google Calendar events, alongside Tasks and Notes, with an "Add" link that opens Google Calendar's own day view in a new tab for creating events.
-- **Settings** — CRUD management for Statuses, Priority Groups, Projects, and Users, all from one dialog.
+- **Multiple users** — each user's tasks, notes, and projects are their own. A task can be delegated to another user, who sees it (and any notes it links) on their own day and can change its status, date, and priority. Sign-in is invite-only: an admin adds people by email in Settings > Users first.
+- **Settings** — CRUD management for Projects (per user) and Theme; admins also manage the shared Statuses and Priority Groups and the Users list.
 
 ## Tech stack
 

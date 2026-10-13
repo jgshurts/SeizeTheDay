@@ -31,8 +31,15 @@ model User {
   themeLeftImage       String? @map("theme_left_image") @db.Text
   themeRightImage      String? @map("theme_right_image") @db.Text
 
+  // Admins manage the shared Statuses and Priority Groups and the Users
+  // list (who's invited to sign in); everyone else manages only their own
+  // projects, tasks, notes and theme.
+  isAdmin Boolean @default(false) @map("is_admin")
+
   ownedTasks       Task[]             @relation("TaskOwner")
   assignedTasks    Task[]             @relation("TaskAssignee")
+  notes            Note[]
+  projects         Project[]
   eventProjectTags EventProjectTag[]
 
   @@map("users")
@@ -68,12 +75,17 @@ model Status {
   @@map("statuses")
 }
 
+// Per-user: each user sees and assigns only their own projects. A task
+// delegated to someone else keeps its owner's project, which the assignee
+// sees but can't change.
 model Project {
   id          BigInt  @id @default(autoincrement())
+  ownerId     BigInt  @map("owner_id")
   name        String
   description String?
   color       String?
 
+  owner     User              @relation(fields: [ownerId], references: [id])
   tasks     Task[]
   notes     Note[]
   eventTags EventProjectTag[]
@@ -124,14 +136,18 @@ model Task {
   @@map("tasks")
 }
 
+// Visible to its owner, and also to the assignee of any task delegated to
+// them that links it (as blocker note, or "@REF" in the description).
 model Note {
   id          BigInt   @id @default(autoincrement())
+  ownerId     BigInt   @map("owner_id")
   projectId   BigInt?  @map("project_id")
   shortRef    String?  @map("short_ref") @db.VarChar(10)
   noteText    String?  @map("note_text")
   createdAt   DateTime @default(now()) @map("created_at")
   contextDate DateTime @map("context_date") @db.Date
 
+  owner        User     @relation(fields: [ownerId], references: [id])
   project      Project? @relation(fields: [projectId], references: [id])
   blockedTasks Task[]   @relation("TaskBlockerNote")
 

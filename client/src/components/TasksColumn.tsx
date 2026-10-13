@@ -25,7 +25,7 @@ import { NoteRefBadge } from "./NoteRefBadge";
 import { ColumnHeader, ADD_BUTTON_CLASS, ICON_BUTTON_CLASS } from "./ColumnHeader";
 import { withAlpha } from "../lib/color";
 import { confirmMoveIfComplete } from "../lib/confirmMove";
-import type { Note, PriorityGroup, Project, Status, Task } from "../types";
+import type { Note, PriorityGroup, Project, Status, Task, UserSummary } from "../types";
 
 interface TasksColumnProps {
   activeDate: string;
@@ -33,6 +33,11 @@ interface TasksColumnProps {
   statuses: Status[];
   priorityGroups: PriorityGroup[];
   projects: Project[];
+  // Who's signed in, and everyone a task can be delegated to. A task the
+  // signed-in user doesn't own was delegated to them: they can change its
+  // status, date and priority, and nothing else (the server enforces this).
+  currentUserId: string;
+  users: UserSummary[];
   showCompleted: boolean;
   onShowCompletedChange: (value: boolean) => void;
   onAddTask: (description: string, projectId?: string | null) => Promise<Task>;
@@ -49,13 +54,16 @@ const NONE = "";
 
 interface BlockerNoteCellProps {
   task: Task;
+  // False for a task delegated to the signed-in user -- attaching or
+  // removing a blocker note links a note, which stays the owner's call.
+  canEdit: boolean;
   onUpdateTask: (id: string, patch: Record<string, unknown>) => Promise<void>;
 }
 
 // Shown only while a task's current status is flagged "blocked" (Settings >
 // Statuses) -- a known, dedicated place to attach the note explaining what's
 // blocking it and who's clearing it.
-function BlockerNoteCell({ task, onUpdateTask }: BlockerNoteCellProps) {
+function BlockerNoteCell({ task, canEdit, onUpdateTask }: BlockerNoteCellProps) {
   const [editing, setEditing] = useState(false);
   const [refInput, setRefInput] = useState("");
   const [error, setError] = useState(false);
@@ -77,6 +85,14 @@ function BlockerNoteCell({ task, onUpdateTask }: BlockerNoteCellProps) {
     } catch {
       setError(true);
     }
+  }
+
+  if (!canEdit) {
+    return task.blockerNote?.shortRef ? (
+      <span className="flex items-center justify-center">
+        <NoteRefBadge shortRef={task.blockerNote.shortRef} />
+      </span>
+    ) : null;
   }
 
   if (task.blockerNote) {
@@ -120,12 +136,33 @@ function BlockerNoteCell({ task, onUpdateTask }: BlockerNoteCellProps) {
   );
 }
 
+// Flags a task shared between two users: "→ mel" on a task you delegated,
+// "from ada" on one delegated to you.
+function DelegationMarker({ task, currentUserId }: { task: Task; currentUserId: string }) {
+  if (task.ownerId === task.assigneeId) return null;
+  const delegatedByMe = task.ownerId === currentUserId;
+  return (
+    <span
+      title={
+        delegatedByMe
+          ? `Delegated to ${task.assignee.nickname}`
+          : `Delegated to you by ${task.owner.nickname}`
+      }
+      className="mr-1 rounded bg-sky-100 px-1 py-0.5 text-[10px] font-medium text-sky-700"
+    >
+      {delegatedByMe ? `→ ${task.assignee.nickname}` : `from ${task.owner.nickname}`}
+    </span>
+  );
+}
+
 export function TasksColumn({
   activeDate,
   tasks,
   statuses,
   priorityGroups,
   projects,
+  currentUserId,
+  users,
   showCompleted,
   onShowCompletedChange,
   onAddTask,
@@ -220,8 +257,11 @@ export function TasksColumn({
     );
   }
 
+  // Only the selected tasks this user owns -- any delegated to them stay put.
+  const deletableSelectedTasks = selectedTasks.filter((t) => t.ownerId === currentUserId);
+
   async function bulkDelete() {
-    await Promise.all(selectedTasks.map((t) => onDeleteTask(t.id)));
+    await Promise.all(deletableSelectedTasks.map((t) => onDeleteTask(t.id)));
     setSelectedIds(new Set());
   }
 
@@ -347,7 +387,7 @@ export function TasksColumn({
             onClose={() => setBulkMenuOpen(false)}
             onMoveToDate={() => setMoveDialogTarget("selected")}
             onMoveToTomorrow={moveSelectedToTomorrow}
-            onDelete={bulkDelete}
+            onDelete={deletableSelectedTasks.length > 0 ? bulkDelete : undefined}
           />
           <button
             type="button"
@@ -410,179 +450,215 @@ export function TasksColumn({
                 <td />
               </tr>
             )}
-            {visibleTasks.map((task) => (
-              <tr
-                key={task.id}
-                className="border-t border-slate-100"
-                style={
-                  task.project?.color
-                    ? { backgroundColor: withAlpha(task.project.color, "1a") }
-                    : undefined
-                }
-              >
-                {!isMobile && (
-                  <td className="px-1 py-1 text-center">
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${task.description}`}
-                      checked={selectedIds.has(task.id)}
-                      onChange={() => toggleSelect(task.id)}
+            {visibleTasks.map((task) => {
+              const isOwner = task.ownerId === currentUserId;
+              return (
+                <tr
+                  key={task.id}
+                  className="border-t border-slate-100"
+                  style={
+                    task.project?.color
+                      ? { backgroundColor: withAlpha(task.project.color, "1a") }
+                      : undefined
+                  }
+                >
+                  {!isMobile && (
+                    <td className="px-1 py-1 text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${task.description}`}
+                        checked={selectedIds.has(task.id)}
+                        onChange={() => toggleSelect(task.id)}
+                      />
+                    </td>
+                  )}
+                  <td className="px-1 py-1">
+                    <StatusSelect
+                      statuses={statuses}
+                      value={task.statusId}
+                      onChange={(statusId) => onUpdateTask(task.id, { statusId })}
                     />
                   </td>
-                )}
-                <td className="px-1 py-1">
-                  <StatusSelect
-                    statuses={statuses}
-                    value={task.statusId}
-                    onChange={(statusId) => onUpdateTask(task.id, { statusId })}
-                  />
-                </td>
-                <td className="px-1 py-1">
-                  <select
-                    value={task.priorityGroupId ?? NONE}
-                    onChange={(e) =>
-                      onUpdateTask(task.id, { priorityGroupId: e.target.value || null })
-                    }
-                    style={{ textAlignLast: "center" }}
-                    className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
-                  >
-                    <option value={NONE}>-</option>
-                    {priorityGroups.map((pg) => (
-                      <option key={pg.id} value={pg.id}>
-                        {pg.prtyCode}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-1 py-1">
-                  <input
-                    // Uncontrolled (defaultValue only applies on mount), so
-                    // when the server's value changes out from under us --
-                    // Renumber, or another tab -- without this row's own
-                    // onChange/onBlur causing it (e.g. Renumber touching
-                    // many rows at once), the key forces a remount to pick
-                    // up the new value instead of showing a stale one.
-                    key={task.prtyOrdinal ?? "null"}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    defaultValue={task.prtyOrdinal ?? undefined}
-                    onChange={(e) => {
-                      e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, "");
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-                      e.preventDefault();
-                      const current = Number(e.currentTarget.value) || 0;
-                      const next = e.key === "ArrowUp" ? current + 1 : Math.max(0, current - 1);
-                      e.currentTarget.value = String(next);
-                      onUpdateTask(task.id, { prtyOrdinal: next });
-                    }}
-                    onBlur={(e) =>
-                      onUpdateTask(task.id, {
-                        prtyOrdinal: e.target.value === "" ? null : Number(e.target.value),
-                      })
-                    }
-                    className="w-full rounded border border-slate-200 px-1 text-center"
-                  />
-                </td>
-                {!isMobile && (
                   <td className="px-1 py-1">
                     <select
-                      value={task.projectId ?? NONE}
+                      value={task.priorityGroupId ?? NONE}
                       onChange={(e) =>
-                        onUpdateTask(task.id, { projectId: e.target.value || null })
+                        onUpdateTask(task.id, { priorityGroupId: e.target.value || null })
                       }
-                      title={task.project?.name ?? undefined}
                       style={{ textAlignLast: "center" }}
                       className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
                     >
                       <option value={NONE}>-</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
+                      {priorityGroups.map((pg) => (
+                        <option key={pg.id} value={pg.id}>
+                          {pg.prtyCode}
                         </option>
                       ))}
                     </select>
                   </td>
-                )}
-                <td className="px-2 py-1">
-                  {editingDescriptionId === task.id && !isMobile ? (
-                    <textarea
-                      autoFocus
-                      defaultValue={task.description}
-                      rows={3}
-                      onBlur={(e) => {
-                        onUpdateTask(task.id, { description: e.target.value });
-                        setEditingDescriptionId(null);
+                  <td className="px-1 py-1">
+                    <input
+                      // Uncontrolled (defaultValue only applies on mount), so
+                      // when the server's value changes out from under us --
+                      // Renumber, or another tab -- without this row's own
+                      // onChange/onBlur causing it (e.g. Renumber touching
+                      // many rows at once), the key forces a remount to pick
+                      // up the new value instead of showing a stale one.
+                      key={task.prtyOrdinal ?? "null"}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      defaultValue={task.prtyOrdinal ?? undefined}
+                      onChange={(e) => {
+                        e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, "");
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          e.currentTarget.blur();
-                        }
+                        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                        e.preventDefault();
+                        const current = Number(e.currentTarget.value) || 0;
+                        const next = e.key === "ArrowUp" ? current + 1 : Math.max(0, current - 1);
+                        e.currentTarget.value = String(next);
+                        onUpdateTask(task.id, { prtyOrdinal: next });
                       }}
-                      className="w-full rounded border border-slate-300 p-1 text-sm"
+                      onBlur={(e) =>
+                        onUpdateTask(task.id, {
+                          prtyOrdinal: e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      className="w-full rounded border border-slate-200 px-1 text-center"
                     />
-                  ) : (
-                    <div className="group relative">
-                      <div
-                        onClick={() => setEditingDescriptionId(task.id)}
-                        className="cursor-text truncate rounded border border-transparent px-1 py-1 text-slate-800 hover:border-slate-200"
-                      >
-                        <NoteRefText text={task.description} />
-                      </div>
-                      {!isMobile && (
-                        <div
-                          role="tooltip"
-                          className="pointer-events-none invisible absolute left-0 top-full z-20 mt-1 w-72 whitespace-pre-wrap rounded bg-slate-800 px-2 py-1.5 text-left text-xs normal-case text-slate-100 opacity-0 shadow-lg transition-opacity duration-100 group-hover:visible group-hover:opacity-100"
-                        >
-                          {task.description}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </td>
-                {!isMobile && (
-                  <td className="px-1 py-1 text-center">
-                    <BlockerNoteCell task={task} onUpdateTask={onUpdateTask} />
                   </td>
-                )}
-                <td className="px-2 py-1 text-right">
-                  {isMobile ? (
-                    <button
-                      type="button"
-                      aria-label="Delete task"
-                      onClick={() => onDeleteTask(task.id)}
-                      className="text-slate-400 hover:text-red-600"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  ) : (
-                    (() => {
-                      const inMultiSelect = selectedIds.size > 1 && selectedIds.has(task.id);
-                      return (
-                        <TaskActionsMenu
-                          open={openActionsMenuId === task.id}
-                          onToggle={() =>
-                            setOpenActionsMenuId((prev) => (prev === task.id ? null : task.id))
+                  {!isMobile && (
+                    <td className="px-1 py-1">
+                      {!isOwner ? (
+                        // The owner's project, which isn't in this user's list.
+                        <span
+                          title={task.project?.name ?? undefined}
+                          className="block truncate text-center text-xs text-slate-600"
+                        >
+                          {task.project?.name ?? "-"}
+                        </span>
+                      ) : (
+                        <select
+                          value={task.projectId ?? NONE}
+                          onChange={(e) =>
+                            onUpdateTask(task.id, { projectId: e.target.value || null })
                           }
-                          onClose={() => setOpenActionsMenuId(null)}
-                          onMoveToDate={() =>
-                            inMultiSelect ? setMoveDialogTarget("selected") : setMovingTaskId(task.id)
-                          }
-                          onMoveToTomorrow={() =>
-                            inMultiSelect ? moveSelectedToTomorrow() : moveTaskToTomorrow(task)
-                          }
-                          onDelete={() => (inMultiSelect ? bulkDelete() : onDeleteTask(task.id))}
-                          selectionCount={inMultiSelect ? selectedIds.size : undefined}
-                        />
-                      );
-                    })()
+                          title={task.project?.name ?? undefined}
+                          style={{ textAlignLast: "center" }}
+                          className="w-full appearance-none rounded border border-slate-200 bg-white text-center text-xs"
+                        >
+                          <option value={NONE}>-</option>
+                          {projects.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
                   )}
-                </td>
-              </tr>
-            ))}
+                  <td className="px-2 py-1">
+                    {editingDescriptionId === task.id && !isMobile ? (
+                      <textarea
+                        autoFocus
+                        defaultValue={task.description}
+                        rows={3}
+                        onBlur={(e) => {
+                          onUpdateTask(task.id, { description: e.target.value });
+                          setEditingDescriptionId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        className="w-full rounded border border-slate-300 p-1 text-sm"
+                      />
+                    ) : (
+                      <div className="group relative">
+                        <div
+                          onClick={isOwner ? () => setEditingDescriptionId(task.id) : undefined}
+                          className={`truncate rounded border border-transparent px-1 py-1 text-slate-800 ${
+                            isOwner ? "cursor-text hover:border-slate-200" : ""
+                          }`}
+                        >
+                          <DelegationMarker task={task} currentUserId={currentUserId} />
+                          <NoteRefText text={task.description} />
+                        </div>
+                        {!isMobile && (
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none invisible absolute left-0 top-full z-20 mt-1 w-72 whitespace-pre-wrap rounded bg-slate-800 px-2 py-1.5 text-left text-xs normal-case text-slate-100 opacity-0 shadow-lg transition-opacity duration-100 group-hover:visible group-hover:opacity-100"
+                          >
+                            {task.description}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  {!isMobile && (
+                    <td className="px-1 py-1 text-center">
+                      <BlockerNoteCell task={task} canEdit={isOwner} onUpdateTask={onUpdateTask} />
+                    </td>
+                  )}
+                  <td className="px-2 py-1 text-right">
+                    {isMobile ? (
+                      isOwner && (
+                        <button
+                          type="button"
+                          aria-label="Delete task"
+                          onClick={() => onDeleteTask(task.id)}
+                          className="text-slate-400 hover:text-red-600"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )
+                    ) : (
+                      (() => {
+                        const inMultiSelect = selectedIds.size > 1 && selectedIds.has(task.id);
+                        return (
+                          <TaskActionsMenu
+                            open={openActionsMenuId === task.id}
+                            onToggle={() =>
+                              setOpenActionsMenuId((prev) => (prev === task.id ? null : task.id))
+                            }
+                            onClose={() => setOpenActionsMenuId(null)}
+                            onMoveToDate={() =>
+                              inMultiSelect ? setMoveDialogTarget("selected") : setMovingTaskId(task.id)
+                            }
+                            onMoveToTomorrow={() =>
+                              inMultiSelect ? moveSelectedToTomorrow() : moveTaskToTomorrow(task)
+                            }
+                            onDelete={
+                              inMultiSelect
+                                ? deletableSelectedTasks.length > 0
+                                  ? bulkDelete
+                                  : undefined
+                                : isOwner
+                                  ? () => onDeleteTask(task.id)
+                                  : undefined
+                            }
+                            assign={
+                              isOwner && !inMultiSelect && users.length > 1
+                                ? {
+                                    users,
+                                    currentUserId,
+                                    assigneeId: task.assigneeId,
+                                    onAssign: (assigneeId) => onUpdateTask(task.id, { assigneeId }),
+                                  }
+                                : undefined
+                            }
+                            selectionCount={inMultiSelect ? selectedIds.size : undefined}
+                          />
+                        );
+                      })()
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

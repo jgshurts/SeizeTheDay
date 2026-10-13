@@ -5,24 +5,29 @@ import { PriorityGroupsTab } from "./PriorityGroupsTab";
 import { UsersTab } from "./UsersTab";
 import { ProjectsTab } from "./ProjectsTab";
 import { ThemeTab } from "./ThemeTab";
+import { useAuth } from "../../context/AuthContext";
 
 type Tab = "projects" | "statuses" | "priorityGroups" | "users" | "theme";
 
-const TABS: { id: Tab; label: string }[] = [
+// Statuses, Priority Groups and Users are one shared set for everyone, so
+// only admins see (and can change) them; the server enforces the same.
+const TABS: { id: Tab; label: string; adminOnly?: boolean }[] = [
   { id: "projects", label: "Projects" },
-  { id: "statuses", label: "Statuses" },
-  { id: "priorityGroups", label: "Priority Groups" },
-  { id: "users", label: "Users" },
+  { id: "statuses", label: "Statuses", adminOnly: true },
+  { id: "priorityGroups", label: "Priority Groups", adminOnly: true },
+  { id: "users", label: "Users", adminOnly: true },
   { id: "theme", label: "Theme" },
 ];
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("projects");
+  const tabs = TABS.filter((t) => !t.adminOnly || user?.isAdmin);
 
   return (
     <Modal title="Settings" onClose={onClose}>
       <div className="mb-4 flex gap-1 border-b border-slate-200">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"

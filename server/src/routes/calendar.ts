@@ -3,7 +3,8 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { parseDateParam } from "../lib/date";
-import { getEventsForDate } from "../lib/googleCalendar";
+import { CalendarAccessError, getEventsForDate } from "../lib/googleCalendar";
+import { isOwnProjectId } from "../lib/access";
 
 export const calendarRouter = Router();
 calendarRouter.use(requireAuth);
@@ -23,7 +24,16 @@ calendarRouter.get(
       return;
     }
 
-    const events = await getEventsForDate(user.googleRefreshToken, dateKey);
+    let events;
+    try {
+      events = await getEventsForDate(user.googleRefreshToken, dateKey);
+    } catch (err) {
+      if (err instanceof CalendarAccessError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
 
     const tags = await prisma.eventProjectTag.findMany({
       where: { userId: user.id, googleEventId: { in: events.map((e) => e.id) } },
@@ -51,6 +61,10 @@ calendarRouter.patch(
     if (!projectId) {
       await prisma.eventProjectTag.deleteMany({ where: { userId, googleEventId } });
       res.json({ googleEventId, projectId: null });
+      return;
+    }
+    if (!(await isOwnProjectId(projectId, userId))) {
+      res.status(400).json({ error: "Unknown project" });
       return;
     }
 

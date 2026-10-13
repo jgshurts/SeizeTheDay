@@ -28,7 +28,9 @@ authRouter.get(
     const { profile, refreshToken } = await exchangeCodeForProfile(code);
 
     // Link by googleId first, then fall back to a pre-provisioned row
-    // created by email in Settings > Users, else create a brand-new user.
+    // created by email in Settings > Users. Sign-in is invite-only: any
+    // other Google account is turned away, except on a brand-new database
+    // with no users at all, where the first sign-in becomes the admin.
     let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
     if (!user) {
       user = await prisma.user.findUnique({ where: { email: profile.email } });
@@ -43,10 +45,14 @@ authRouter.get(
 
     if (user) {
       user = await prisma.user.update({ where: { id: user.id }, data });
+    } else if ((await prisma.user.count()) > 0) {
+      res.redirect(`${CLIENT_URL}/?authError=not_invited`);
+      return;
     } else {
       user = await prisma.user.create({
         data: {
           ...data,
+          isAdmin: true,
           firstName: profile.firstName,
           lastName: profile.lastName,
           nickname: profile.email.split("@")[0],

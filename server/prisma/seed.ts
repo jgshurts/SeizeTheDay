@@ -39,8 +39,9 @@ async function main() {
     skipDuplicates: true,
   });
 
-  // Pre-provision the first user by email; signing in with this Google
-  // account links it on the first login instead of creating a duplicate.
+  // Pre-provision the first user (the admin) by email; signing in with this
+  // Google account links it on the first login instead of creating a
+  // duplicate.
   await prisma.user.upsert({
     where: { email: "jgshurts@gmail.com" },
     update: {},
@@ -49,6 +50,7 @@ async function main() {
       lastName: "Shurts",
       nickname: "jeff",
       email: "jgshurts@gmail.com",
+      isAdmin: true,
     },
   });
 }

@@ -1,4 +1,22 @@
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+
+// Set by the server's Google callback when it turns a sign-in away.
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  not_invited: "That Google account hasn't been invited. Ask an admin to add you in Settings > Users.",
+};
+
+// Reads (and clears from the address bar) the ?authError the callback sent
+// back, so a refresh doesn't keep showing it.
+function takeAuthError(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("authError");
+  if (!code) return null;
+  params.delete("authError");
+  const rest = params.toString();
+  window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
+  return AUTH_ERROR_MESSAGES[code] ?? "Sign-in failed. Please try again.";
+}
 
 function GoogleIcon() {
   return (
@@ -25,12 +43,19 @@ function GoogleIcon() {
 
 export function LoginPage() {
   const { loginWithGoogle } = useAuth();
+  const [authError] = useState(takeAuthError);
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-slate-100">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 text-center shadow-md">
         <h1 className="mb-2 text-2xl font-semibold text-slate-800">Seize the Day</h1>
         <p className="mb-6 text-sm text-slate-500">Sign in to open your planner.</p>
+
+        {authError && (
+          <p role="alert" className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+            {authError}
+          </p>
+        )}
 
         <button
           type="button"

@@ -8,6 +8,8 @@ import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
 import { ScheduleColumn } from "../components/ScheduleColumn";
 import { SettingsDialog } from "../components/settings/SettingsDialog";
+import { NoteDialog } from "../components/NoteDialog";
+import { forgetCachedNoteRef } from "../lib/noteRefCache";
 import { toLocalDateKey } from "../lib/date";
 import { computeDefaultTaskPriority } from "../lib/taskDefaults";
 import { sortTasks } from "../lib/taskSort";
@@ -15,8 +17,9 @@ import { useIsMobile } from "../lib/useIsMobile";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { ActiveBackgroundProvider } from "../context/ActiveBackgroundContext";
+import { NoteRefOpenerProvider } from "../context/NoteRefOpenerContext";
 import { withAlpha } from "../lib/color";
-import type { PriorityGroup, Project, Status, Task } from "../types";
+import type { Note, PriorityGroup, Project, Status, Task, UserSummary } from "../types";
 
 // Fades a panel's background image out under a translucent white veil so
 // text stays readable on top of it, in one background-image declaration
@@ -43,13 +46,22 @@ function loadStoredSplit(): number {
   return Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, stored));
 }
 
-const CONTEXT_PROJECTS_STORAGE_KEY = "std_context_project_ids";
-// The single-project key this replaced -- read once so an existing filter
-// carries over, then dropped on the next save.
+// Saved per user -- project ids are per-user too, so one person's filter
+// would otherwise carry over to whoever signs in next in the same browser.
+function contextProjectsStorageKey(userId: string | undefined): string {
+  return `std_context_project_ids:${userId ?? ""}`;
+}
+// The unkeyed keys this replaced -- read once so an existing filter carries
+// over, then dropped on the next save. MainPage also prunes any id that
+// isn't one of the signed-in user's projects, so whoever picks them up
+// can't end up filtering on someone else's.
+const LEGACY_CONTEXT_PROJECTS_STORAGE_KEY = "std_context_project_ids";
 const LEGACY_CONTEXT_PROJECT_STORAGE_KEY = "std_context_project_id";
 
-function loadStoredContextProjectIds(): string[] {
-  const raw = localStorage.getItem(CONTEXT_PROJECTS_STORAGE_KEY);
+function loadStoredContextProjectIds(userId: string | undefined): string[] {
+  const raw =
+    localStorage.getItem(contextProjectsStorageKey(userId)) ??
+    localStorage.getItem(LEGACY_CONTEXT_PROJECTS_STORAGE_KEY);
   if (raw !== null) {
     try {
       const parsed: unknown = JSON.parse(raw);
@@ -76,13 +88,19 @@ export function MainPage() {
   const [manageTasksOpen, setManageTasksOpen] = useState(false);
   const [unfinishedTasksOpen, setUnfinishedTasksOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // A note opened from an @REF link in the Tasks column -- likely written on
+  // a different day, so it lives here rather than in NotesColumn's list.
+  const [refNote, setRefNote] = useState<Note | null>(null);
+  const [notesRefreshKey, setNotesRefreshKey] = useState(0);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [priorityGroups, setPriorityGroups] = useState<PriorityGroup[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  // Everyone a task can be delegated to (the signed-in user included).
+  const [users, setUsers] = useState<UserSummary[]>([]);
   const [showCompleted, setShowCompleted] = useState(true);
-  const [contextProjectIds, setContextProjectIds] = useState(loadStoredContextProjectIds);
+  const [contextProjectIds, setContextProjectIds] = useState(() => loadStoredContextProjectIds(user?.id));
   const [showSchedule, setShowSchedule] = useState(loadStoredShowSchedule);
 
   const [taskColumnWidth, setTaskColumnWidth] = useState(loadStoredSplit);
@@ -99,19 +117,28 @@ export function MainPage() {
   useEffect(() => {
     api.get<Status[]>("/statuses").then(setStatuses);
     api.get<PriorityGroup[]>("/priority-groups").then(setPriorityGroups);
-    api.get<Project[]>("/projects").then(setProjects);
+    api.get<Project[]>("/projects").then((loaded) => {
+      setProjects(loaded);
+      setContextProjectIds((ids) => {
+        const kept = ids.filter((id) => loaded.some((p) => p.id === id));
+        return kept.length === ids.length ? ids : kept;
+      });
+    });
+    api.get<UserSummary[]>("/users").then(setUsers);
   }, []);
 
   // Persisted so the Banner's project filter survives a refresh, the same
   // way the Tasks/Notes split width already does.
   useEffect(() => {
     localStorage.removeItem(LEGACY_CONTEXT_PROJECT_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_CONTEXT_PROJECTS_STORAGE_KEY);
+    const key = contextProjectsStorageKey(user?.id);
     if (contextProjectIds.length > 0) {
-      localStorage.setItem(CONTEXT_PROJECTS_STORAGE_KEY, JSON.stringify(contextProjectIds));
+      localStorage.setItem(key, JSON.stringify(contextProjectIds));
     } else {
-      localStorage.removeItem(CONTEXT_PROJECTS_STORAGE_KEY);
+      localStorage.removeItem(key);
     }
-  }, [contextProjectIds]);
+  }, [contextProjectIds, user?.id]);
 
   // The server accepts a comma-separated projectId list and matches any of
   // them. New tasks/notes default to the first selected project so they stay
@@ -209,24 +236,54 @@ export function MainPage() {
     await fetchTasks();
   }
 
+  // Fetched fresh rather than through NoteRefBadge's preview cache, since
+  // the dialog is where the note gets edited.
+  async function openNoteRef(shortRef: string): Promise<boolean> {
+    try {
+      setRefNote(await api.get<Note>(`/notes/by-ref/${encodeURIComponent(shortRef)}`));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function updateRefNote(id: string, patch: Record<string, unknown>) {
+    const updated = await api.patch<Note>(`/notes/${id}`, patch);
+    if (updated.shortRef) forgetCachedNoteRef(updated.shortRef);
+    setRefNote(updated);
+    setNotesRefreshKey((k) => k + 1);
+  }
+
+  async function deleteRefNote(id: string) {
+    await api.delete(`/notes/${id}`);
+    if (refNote?.shortRef) forgetCachedNoteRef(refNote.shortRef);
+    setNotesRefreshKey((k) => k + 1);
+    // A task's blocker note may have just been deleted out from under it.
+    await fetchTasks();
+  }
+
   const tasksColumn = (
-    <TasksColumn
-      activeDate={activeDate}
-      tasks={tasks}
-      statuses={statuses}
-      priorityGroups={priorityGroups}
-      projects={pickableProjects}
-      showCompleted={showCompleted}
-      onShowCompletedChange={setShowCompleted}
-      onAddTask={(description, projectId) => addTask(description, { projectId })}
-      onUpdateTask={updateTask}
-      onDeleteTask={deleteTask}
-      onRenumberDay={renumberDay}
-      onOpenUnfinishedTasksDialog={() => setUnfinishedTasksOpen(true)}
-      onOpenSearchTasksDialog={() => setSearchOpen(true)}
-      onOpenManageTasks={() => setManageTasksOpen(true)}
-      subBannerColor={user?.themeSubBannerColor}
-    />
+    <NoteRefOpenerProvider value={openNoteRef}>
+      <TasksColumn
+        activeDate={activeDate}
+        tasks={tasks}
+        statuses={statuses}
+        priorityGroups={priorityGroups}
+        projects={pickableProjects}
+        currentUserId={user?.id ?? ""}
+        users={users}
+        showCompleted={showCompleted}
+        onShowCompletedChange={setShowCompleted}
+        onAddTask={(description, projectId) => addTask(description, { projectId })}
+        onUpdateTask={updateTask}
+        onDeleteTask={deleteTask}
+        onRenumberDay={renumberDay}
+        onOpenUnfinishedTasksDialog={() => setUnfinishedTasksOpen(true)}
+        onOpenSearchTasksDialog={() => setSearchOpen(true)}
+        onOpenManageTasks={() => setManageTasksOpen(true)}
+        subBannerColor={user?.themeSubBannerColor}
+      />
+    </NoteRefOpenerProvider>
   );
 
   const scheduleColumn = (
@@ -259,6 +316,7 @@ export function MainPage() {
       projects={pickableProjects}
       projectFilterKey={projectFilterKey}
       defaultProjectId={defaultProjectId}
+      refreshKey={notesRefreshKey}
       subBannerColor={user?.themeSubBannerColor}
     />
   );
@@ -371,6 +429,18 @@ export function MainPage() {
             projects={projects}
             onUpdateTask={updateTask}
             onClose={() => setUnfinishedTasksOpen(false)}
+          />
+        )}
+        {refNote && (
+          <NoteDialog
+            key={refNote.id}
+            note={refNote}
+            projects={projects}
+            isOwner={refNote.ownerId === user?.id}
+            startEditing={false}
+            onUpdateNote={updateRefNote}
+            onDeleteNote={deleteRefNote}
+            onClose={() => setRefNote(null)}
           />
         )}
         {searchOpen && (

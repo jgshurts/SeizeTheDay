@@ -3,9 +3,14 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { handlePrismaError } from "../lib/prismaErrors";
+import { requireAdmin } from "../lib/access";
 
 export const statusesRouter = Router();
 statusesRouter.use(requireAuth);
+
+// One shared set for every user, so a task delegated between users keeps a
+// status and priority group both of them recognize. Anyone can read them;
+// only admins change them.
 
 statusesRouter.get(
   "/",
@@ -17,6 +22,7 @@ statusesRouter.get(
 
 statusesRouter.post(
   "/",
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const {
       statusCode,
@@ -63,6 +69,7 @@ statusesRouter.post(
 
 statusesRouter.patch(
   "/:id",
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
     const {
@@ -108,6 +115,7 @@ statusesRouter.patch(
 
 statusesRouter.delete(
   "/:id",
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
     try {

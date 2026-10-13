@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarClock, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarClock, MoreVertical, Trash2, UserRound } from "lucide-react";
+import type { UserSummary } from "../types";
 
 interface TaskActionsMenuProps {
   open: boolean;
@@ -7,7 +8,16 @@ interface TaskActionsMenuProps {
   onClose: () => void;
   onMoveToDate: () => void;
   onMoveToTomorrow: () => void;
-  onDelete: () => void;
+  // Omitted when the user can't delete this task (it was delegated to them).
+  onDelete?: () => void;
+  // Delegation picker, offered only to the task's owner and only for a
+  // single task (not a multi-row selection).
+  assign?: {
+    users: UserSummary[];
+    currentUserId: string;
+    assigneeId: string;
+    onAssign: (userId: string) => void;
+  };
   // Set when this row is part of a larger checked selection, so its own
   // menu acts on the whole selection instead of just this row -- the count
   // is shown on each action so that isn't a surprise.
@@ -23,6 +33,7 @@ export function TaskActionsMenu({
   onMoveToDate,
   onMoveToTomorrow,
   onDelete,
+  assign,
   selectionCount,
 }: TaskActionsMenuProps) {
   const suffix = selectionCount && selectionCount > 1 ? ` (${selectionCount})` : "";
@@ -58,7 +69,7 @@ export function TaskActionsMenu({
         <MoreVertical size={16} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded border border-slate-200 bg-white py-1 text-sm shadow-lg">
+        <div className="absolute right-0 top-full z-30 mt-1 w-56 rounded border border-slate-200 bg-white py-1 text-sm shadow-lg">
           <button
             type="button"
             onClick={() => {
@@ -82,7 +93,28 @@ export function TaskActionsMenu({
           >
             <CalendarClock size={14} /> Move to date...{suffix}
           </button>
-          {confirmingDelete ? (
+          {assign && (
+            <label className="flex w-full items-center gap-2 px-3 py-1.5 text-slate-700">
+              <UserRound size={14} className="shrink-0" />
+              <span className="shrink-0">Assign to</span>
+              <select
+                aria-label="Assign to"
+                value={assign.assigneeId}
+                onChange={(e) => {
+                  assign.onAssign(e.target.value);
+                  onClose();
+                }}
+                className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-1 py-0.5 text-xs"
+              >
+                {assign.users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.id === assign.currentUserId ? "Me" : u.nickname}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {!onDelete ? null : confirmingDelete ? (
             <div className="flex items-center justify-between px-3 py-1.5 text-red-600">
               <span>Delete{suffix}?</span>
               <span className="flex items-center gap-2">

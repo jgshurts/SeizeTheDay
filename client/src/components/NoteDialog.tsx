@@ -16,6 +16,7 @@ const NONE = "";
 export function NoteDialog({
   note,
   projects,
+  isOwner = true,
   startEditing,
   onEditExternally,
   onUpdateNote,
@@ -24,6 +25,10 @@ export function NoteDialog({
 }: {
   note: Note;
   projects: Project[];
+  // False for someone else's note opened through a task delegated to this
+  // user: they can read and edit its text, but its project and deletion
+  // stay with the owner.
+  isOwner?: boolean;
   startEditing: boolean;
   // Mobile hands editing off to MobileTextEditor instead of the textarea
   // below, which is cramped under an on-screen keyboard.
@@ -71,19 +76,23 @@ export function NoteDialog({
     <Modal title="Note" onClose={requestClose} maxWidthClassName="max-w-4xl">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
         <div className="flex items-center gap-2">
-          <select
-            aria-label="Note project"
-            value={note.projectId ?? NONE}
-            onChange={(e) => onUpdateNote(note.id, { projectId: e.target.value || null })}
-            className="rounded border border-slate-200 bg-white px-1 py-0.5"
-          >
-            <option value={NONE}>No project</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          {isOwner ? (
+            <select
+              aria-label="Note project"
+              value={note.projectId ?? NONE}
+              onChange={(e) => onUpdateNote(note.id, { projectId: e.target.value || null })}
+              className="rounded border border-slate-200 bg-white px-1 py-0.5"
+            >
+              <option value={NONE}>No project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            note.project && <span>{note.project.name}</span>
+          )}
           {note.shortRef && <NoteRefPill shortRef={note.shortRef} />}
           <span>{new Date(note.createdAt).toLocaleString()}</span>
         </div>
@@ -105,14 +114,16 @@ export function NoteDialog({
               <Pencil size={14} /> Edit
             </button>
           )}
-          <ConfirmDeleteButton
-            label="Delete note"
-            iconSize={16}
-            onConfirm={async () => {
-              await onDeleteNote(note.id);
-              onClose();
-            }}
-          />
+          {isOwner && (
+            <ConfirmDeleteButton
+              label="Delete note"
+              iconSize={16}
+              onConfirm={async () => {
+                await onDeleteNote(note.id);
+                onClose();
+              }}
+            />
+          )}
         </div>
       </div>
 

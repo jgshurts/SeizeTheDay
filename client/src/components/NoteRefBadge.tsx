@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Markdown from "react-markdown";
-import { api, ApiError } from "../lib/api";
+import { fetchNoteByRef } from "../lib/noteRefCache";
 import { useActiveBackground } from "../context/ActiveBackgroundContext";
+import { useNoteRefOpener } from "../context/NoteRefOpenerContext";
 import type { Note } from "../types";
 
 interface NoteRefBadgeProps {
@@ -16,24 +17,6 @@ type RefState =
   | { status: "not-found" }
   | { status: "error" };
 
-// Shared across every badge on the page so opening the same ref twice
-// (e.g. once in a task, once in a note) doesn't refetch it.
-const noteRefCache = new Map<string, Promise<Note | null>>();
-
-function fetchNoteByRef(shortRef: string): Promise<Note | null> {
-  const key = shortRef.toLowerCase();
-  let cached = noteRefCache.get(key);
-  if (!cached) {
-    cached = api.get<Note>(`/notes/by-ref/${encodeURIComponent(shortRef)}`).catch((err) => {
-      if (err instanceof ApiError && err.status === 404) return null;
-      noteRefCache.delete(key);
-      throw err;
-    });
-    noteRefCache.set(key, cached);
-  }
-  return cached;
-}
-
 // Renders "@REF" as a small pill that, on click, fetches and previews the
 // referenced note -- the note is likely written on a different day-page, so
 // this is the only way to see it without navigating away. The popup is
@@ -46,9 +29,13 @@ export function NoteRefBadge({ shortRef }: NoteRefBadgeProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const badgeRef = useRef<HTMLSpanElement>(null);
+  const openNote = useNoteRefOpener();
 
-  function handleClick(e: React.MouseEvent) {
+  async function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
+    // Where an opener is provided (the Tasks column), open the full note
+    // instead -- falling back to the popup only so it can say why not.
+    if (openNote && !open && (await openNote(shortRef))) return;
     if (open) {
       setOpen(false);
       return;

@@ -3,9 +3,14 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { handlePrismaError } from "../lib/prismaErrors";
+import { requireAdmin } from "../lib/access";
 
 export const priorityGroupsRouter = Router();
 priorityGroupsRouter.use(requireAuth);
+
+// One shared set for every user, so a task delegated between users keeps a
+// status and priority group both of them recognize. Anyone can read them;
+// only admins change them.
 
 priorityGroupsRouter.get(
   "/",
@@ -17,6 +22,7 @@ priorityGroupsRouter.get(
 
 priorityGroupsRouter.post(
   "/",
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const { prty, prtyCode, description } = req.body as Record<string, unknown>;
 
@@ -38,6 +44,7 @@ priorityGroupsRouter.post(
 
 priorityGroupsRouter.patch(
   "/:id",
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
     const { prty, prtyCode, description } = req.body as Record<string, unknown>;
@@ -60,6 +67,7 @@ priorityGroupsRouter.patch(
 
 priorityGroupsRouter.delete(
   "/:id",
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const id = BigInt(req.params.id);
     try {

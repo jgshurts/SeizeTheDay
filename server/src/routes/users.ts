@@ -3,24 +3,36 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { handlePrismaError } from "../lib/prismaErrors";
-import { userSelect } from "../lib/userSelect";
+import { userDirectorySelect, userListSelect, userSelect } from "../lib/userSelect";
+import { currentUserId, requireAdmin } from "../lib/access";
 
 export const usersRouter = Router();
 usersRouter.use(requireAuth);
 
+// Everyone can list users (to pick someone to delegate a task to); only
+// admins, who manage the list in Settings > Users, get the full details.
 usersRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const users = await prisma.user.findMany({ select: userSelect, orderBy: { nickname: "asc" } });
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const me = await prisma.user.findUnique({
+      where: { id: currentUserId(req) },
+      select: { isAdmin: true },
+    });
+    const users = await prisma.user.findMany({
+      select: me?.isAdmin ? userListSelect : userDirectorySelect,
+      orderBy: { nickname: "asc" },
+    });
     res.json(users);
   }),
 );
 
 // Creates a placeholder row by email -- once that person signs in with
 // Google, the callback links their googleId to this row instead of making
-// a duplicate.
+// a duplicate. This is also the invitation: the callback turns away any
+// Google account that hasn't been added here first.
 usersRouter.post(
   "/",
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const { firstName, lastName, nickname, email } = req.body as Record<string, unknown>;
 
@@ -52,9 +64,17 @@ usersRouter.post(
 
 usersRouter.patch(
   "/:id",
-  asyncHandler(async (req, res) => {
+  requireAdmin,
+  asyncHandler(async (req: AuthedRequest, res) => {
     const id = BigInt(req.params.id);
-    const { firstName, lastName, nickname, email } = req.body as Record<string, unknown>;
+    const { firstName, lastName, nickname, email, isAdmin } = req.body as Record<string, unknown>;
+
+    // Keeps an admin from locking everyone (including themselves) out of
+    // Settings by removing their own admin access.
+    if (isAdmin === false && id === currentUserId(req)) {
+      res.status(400).json({ error: "You cannot remove your own admin access" });
+      return;
+    }
 
     try {
       const user = await prisma.user.update({
@@ -64,6 +84,7 @@ usersRouter.patch(
           ...(lastName !== undefined ? { lastName: lastName as string } : {}),
           ...(nickname !== undefined ? { nickname: nickname as string } : {}),
           ...(email !== undefined ? { email: email as string } : {}),
+          ...(typeof isAdmin === "boolean" ? { isAdmin } : {}),
         },
         select: userSelect,
       });
@@ -105,6 +126,7 @@ usersRouter.patch(
 
 usersRouter.delete(
   "/:id",
+  requireAdmin,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (req.params.id === req.user!.userId) {
       res.status(400).json({ error: "You cannot delete your own account while logged in" });

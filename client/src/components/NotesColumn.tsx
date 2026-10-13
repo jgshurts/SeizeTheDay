@@ -7,6 +7,7 @@ import { withAlpha } from "../lib/color";
 import { NoteMarkdown } from "./NoteMarkdown";
 import { NoteRefPill } from "./NoteRefPill";
 import { NoteDialog } from "./NoteDialog";
+import { forgetCachedNoteRef } from "../lib/noteRefCache";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { ColumnHeader, ADD_BUTTON_CLASS } from "./ColumnHeader";
 import type { Note, Project } from "../types";
@@ -129,6 +130,9 @@ interface NotesColumnProps {
   // Comma-separated project ids the Banner is filtering to ("" for all).
   projectFilterKey: string;
   defaultProjectId: string | null;
+  // Bumped by MainPage when a note is changed from outside this column (a
+  // note opened from a task's @REF link), to refetch the day's notes.
+  refreshKey: number;
   subBannerColor: string | null | undefined;
 }
 
@@ -137,6 +141,7 @@ export function NotesColumn({
   projects,
   projectFilterKey,
   defaultProjectId,
+  refreshKey,
   subBannerColor,
 }: NotesColumnProps) {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -148,7 +153,7 @@ export function NotesColumn({
   useEffect(() => {
     const projectParam = projectFilterKey ? `&projectId=${projectFilterKey}` : "";
     api.get<Note[]>(`/notes?date=${activeDate}${projectParam}`).then(setNotes);
-  }, [activeDate, projectFilterKey]);
+  }, [activeDate, projectFilterKey, refreshKey]);
 
   async function addNote() {
     const note = await api.post<Note>("/notes", {
@@ -178,11 +183,14 @@ export function NotesColumn({
 
   async function updateNote(id: string, patch: Record<string, unknown>) {
     const updated = await api.patch<Note>(`/notes/${id}`, patch);
+    if (updated.shortRef) forgetCachedNoteRef(updated.shortRef);
     setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
   }
 
   async function deleteNote(id: string) {
+    const shortRef = notes.find((n) => n.id === id)?.shortRef;
     await api.delete(`/notes/${id}`);
+    if (shortRef) forgetCachedNoteRef(shortRef);
     setNotes((prev) => prev.filter((n) => n.id !== id));
   }
 
