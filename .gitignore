@@ -34,3 +34,4 @@ server/prisma/*.db
 # Stray local shell config (not part of this project)
 .bash_profile
 .bash_profileexport
+.neon
