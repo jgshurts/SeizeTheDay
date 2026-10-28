@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -29,3 +29,37 @@ jobs:
 
       - name: Build application
         run: npm run build
+
+      - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+          echo "EC2_HOST=$EC2_HOST" >> "$GITHUB_ENV"
+
+      - name: Update server source and dependencies
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"$EC2_HOST" <<'REMOTE'
+            set -e
+            cd /var/www/seizetheday
+            git fetch origin master
+            git reset --hard origin/master
+            npm ci
+            npm run prisma:generate --workspace server
+          REMOTE
+
+      - name: Transfer production builds
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            server/dist/ \
+            deploy@"$EC2_HOST":/var/www/seizetheday/server/dist/
+
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            client/dist/ \
+            deploy@"$EC2_HOST":/var/www/seizetheday/client/dist/
