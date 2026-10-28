@@ -40,6 +40,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
           echo "EC2_HOST=$EC2_HOST" >> "$GITHUB_ENV"
+          ssh-keygen -y -f ~/.ssh/deploy_key | ssh-keygen -lf -
 
       - name: Update server source and dependencies
         run: |
