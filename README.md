@@ -14,8 +14,8 @@ Built end-to-end — schema, API, and UI — as a full-stack TypeScript project.
 - **Project context** — set a project as the active context to default new tasks/notes into it and filter the day's task list down to just that project.
 - **Move Unfinished Tasks** — bulk-reschedule everything left undone on a given day to another date, with an optional per-task date override for anything that shouldn't just follow the herd.
 - **Keyboard shortcuts** — `Alt/Option+T` (new task), `Alt/Option+N` (new note), `Alt/Option+M` (move unfinished tasks) — chosen deliberately to avoid the browser's own reserved `Ctrl/Cmd` shortcuts.
-- **Auth** — "Sign in with Google" (OAuth), JWT-based session that lasts as long as the browser tab is open. The same Google grant also authorizes read access to Calendar, so there's no separate calendar-connection step.
-- **Schedule column** — a read-only view of the active day's Google Calendar events, alongside Tasks and Notes, with an "Add" link that opens Google Calendar's own day view in a new tab for creating events.
+- **Auth** — nickname/email and password, with admins issuing one-time invite links (also used for password resets); JWT-based session that lasts as long as the browser tab is open.
+- **Schedule column** — a read-only view of the active day's events from the user's private iCal feed (Settings > Calendar; Google Calendar's "Secret address in iCal format" works), alongside Tasks and Notes, refreshed every 15 minutes and on demand, with an "Add" link that opens Google Calendar's own day view in a new tab for creating events.
 - **Multiple users** — each user's tasks, notes, and projects are their own. A task can be delegated to another user, who sees it (and any notes it links) on their own day and can change its status, date, and priority. Sign-in is invite-only: an admin adds people by email in Settings > Users first.
 - **Settings** — CRUD management for Projects (per user) and Theme; admins also manage the shared Statuses and Priority Groups and the Users list.
 
@@ -61,13 +61,15 @@ npm install
 
 # Configure the database connection
 cp server/.env.example server/.env
-# edit server/.env with your local Postgres connection string, a JWT secret,
-# and a Google OAuth client (Cloud Console > APIs & Services > Credentials;
-# enable the Google Calendar API and add the redirect URI from .env.example)
+# edit server/.env with your local Postgres connection string and a JWT secret
 
 # Create the schema and seed some starter data (statuses, priority groups, a user)
 cd server && npx prisma migrate deploy && cd ..
 npm run prisma:seed
+
+# Nobody can sign in until they have a password. Create yourself as an admin
+# and print a one-time link to choose one:
+npm run user:invite --workspace server -- you@example.com --admin
 ```
 
 ### Run it
