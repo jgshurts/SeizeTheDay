@@ -5,9 +5,11 @@ import { PriorityGroupsTab } from "./PriorityGroupsTab";
 import { UsersTab } from "./UsersTab";
 import { ProjectsTab } from "./ProjectsTab";
 import { ThemeTab } from "./ThemeTab";
+import { CalendarTab } from "./CalendarTab";
+import { AccountTab } from "./AccountTab";
 import { useAuth } from "../../context/AuthContext";
 
-type Tab = "projects" | "statuses" | "priorityGroups" | "users" | "theme";
+type Tab = "projects" | "statuses" | "priorityGroups" | "users" | "calendar" | "theme" | "account";
 
 // Statuses, Priority Groups and Users are one shared set for everyone, so
 // only admins see (and can change) them; the server enforces the same.
@@ -16,10 +18,18 @@ const TABS: { id: Tab; label: string; adminOnly?: boolean }[] = [
   { id: "statuses", label: "Statuses", adminOnly: true },
   { id: "priorityGroups", label: "Priority Groups", adminOnly: true },
   { id: "users", label: "Users", adminOnly: true },
+  { id: "calendar", label: "Calendar" },
   { id: "theme", label: "Theme" },
+  { id: "account", label: "Account" },
 ];
 
-export function SettingsDialog({ onClose }: { onClose: () => void }) {
+export function SettingsDialog({
+  onClose,
+  onCalendarChanged,
+}: {
+  onClose: () => void;
+  onCalendarChanged: () => void;
+}) {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("projects");
   const tabs = TABS.filter((t) => !t.adminOnly || user?.isAdmin);
@@ -47,7 +57,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       {tab === "statuses" && <StatusesTab />}
       {tab === "priorityGroups" && <PriorityGroupsTab />}
       {tab === "users" && <UsersTab />}
+      {tab === "calendar" && <CalendarTab onChanged={onCalendarChanged} />}
       {tab === "theme" && <ThemeTab />}
+      {tab === "account" && <AccountTab />}
     </Modal>
   );
 }

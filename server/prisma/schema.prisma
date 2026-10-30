@@ -16,11 +16,24 @@ model User {
   googleId  String? @unique @map("google_id")
   avatarUrl String? @map("avatar_url")
 
-  // Refresh token from Google's OAuth grant, used both to keep the login
-  // session renewable and to read the user's Google Calendar. Nullable so a
-  // user can be pre-provisioned (see users.ts) by email before their first
-  // Google sign-in actually links the account.
+  // Legacy from when sign-in and calendar access went through Google OAuth.
+  // Nothing reads these any more; kept (unused) so the move to passwords is
+  // reversible, and safe to drop in a later migration.
   googleRefreshToken String? @map("google_refresh_token")
+
+  // Sign-in is by password (bcrypt hash). Null until the user accepts their
+  // invite and chooses one.
+  passwordHash String? @map("password_hash")
+
+  // One-time invite / password-reset link. Only the SHA-256 of the token is
+  // stored, so a database leak doesn't hand out working links.
+  inviteTokenHash   String?   @unique @map("invite_token_hash")
+  inviteExpiresAt   DateTime? @map("invite_expires_at")
+
+  // Private iCal feed address (Google Calendar > Settings > "Secret address
+  // in iCal format") shown in the Schedule column. It grants read access to
+  // the calendar, so it's never returned by the API.
+  calendarIcalUrl String? @map("calendar_ical_url")
 
   // Per-user theming (Settings > Theme). Images are stored as data URLs
   // directly on the row -- small enough for a personal planner's own photos

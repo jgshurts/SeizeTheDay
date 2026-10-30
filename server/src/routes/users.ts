@@ -5,6 +5,7 @@ import { asyncHandler } from "../lib/asyncHandler";
 import { handlePrismaError } from "../lib/prismaErrors";
 import { userDirectorySelect, userListSelect, userSelect } from "../lib/userSelect";
 import { currentUserId, requireAdmin } from "../lib/access";
+import { hashPassword, newInvite, passwordProblem, verifyPassword } from "../lib/password";
 
 export const usersRouter = Router();
 usersRouter.use(requireAuth);
@@ -18,18 +19,31 @@ usersRouter.get(
       where: { id: currentUserId(req) },
       select: { isAdmin: true },
     });
+    if (!me?.isAdmin) {
+      res.json(
+        await prisma.user.findMany({ select: userDirectorySelect, orderBy: { nickname: "asc" } }),
+      );
+      return;
+    }
+
+    // Admins also see who can sign in yet and who has an invite outstanding;
+    // the hash itself never leaves the server.
     const users = await prisma.user.findMany({
-      select: me?.isAdmin ? userListSelect : userDirectorySelect,
+      select: { ...userListSelect, passwordHash: true, inviteExpiresAt: true },
       orderBy: { nickname: "asc" },
     });
-    res.json(users);
+    res.json(
+      users.map(({ passwordHash, inviteExpiresAt, ...user }) => ({
+        ...user,
+        hasPassword: passwordHash !== null,
+        invitePending: inviteExpiresAt !== null && inviteExpiresAt > new Date(),
+      })),
+    );
   }),
 );
 
-// Creates a placeholder row by email -- once that person signs in with
-// Google, the callback links their googleId to this row instead of making
-// a duplicate. This is also the invitation: the callback turns away any
-// Google account that hasn't been added here first.
+// Creates the account without a password. The person can't sign in until an
+// admin issues them an invite link (POST /:id/invite) and they choose one.
 usersRouter.post(
   "/",
   requireAdmin,
@@ -92,6 +106,57 @@ usersRouter.patch(
     } catch (err) {
       handlePrismaError(err, res);
     }
+  }),
+);
+
+// Issues a one-time link (valid for a week) that lets the person choose a
+// password -- for a new user's first sign-in, or to reset a forgotten one.
+// Replaces any earlier outstanding link. The raw token is only ever returned
+// here; the database keeps its hash.
+usersRouter.post(
+  "/:id/invite",
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { token, tokenHash, expiresAt } = newInvite();
+    try {
+      await prisma.user.update({
+        where: { id: BigInt(req.params.id) },
+        data: { inviteTokenHash: tokenHash, inviteExpiresAt: expiresAt },
+      });
+      res.json({ token, expiresAt });
+    } catch (err) {
+      handlePrismaError(err, res);
+    }
+  }),
+);
+
+// Self-service: needs the current password so a borrowed, still-open session
+// can't be used to lock the owner out.
+usersRouter.patch(
+  "/me/password",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { currentPassword, newPassword } = req.body as Record<string, unknown>;
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      res.status(400).json({ error: problem });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: currentUserId(req) } });
+    if (
+      !user ||
+      typeof currentPassword !== "string" ||
+      !(await verifyPassword(currentPassword, user.passwordHash))
+    ) {
+      res.status(400).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await hashPassword(newPassword as string) },
+    });
+    res.status(204).send();
   }),
 );
 

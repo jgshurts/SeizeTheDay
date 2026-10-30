@@ -85,6 +85,7 @@ export function MainPage() {
   const { user } = useAuth();
   const [activeDate, setActiveDate] = useState(() => toLocalDateKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [calendarRefresh, setCalendarRefresh] = useState(0);
   const [manageTasksOpen, setManageTasksOpen] = useState(false);
   const [unfinishedTasksOpen, setUnfinishedTasksOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -291,6 +292,7 @@ export function MainPage() {
       activeDate={activeDate}
       projects={projects}
       subBannerColor={user?.themeSubBannerColor}
+      refreshKey={calendarRefresh}
     />
   );
 
@@ -415,7 +417,12 @@ export function MainPage() {
           </main>
         )}
 
-        {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <SettingsDialog
+            onClose={() => setSettingsOpen(false)}
+            onCalendarChanged={() => setCalendarRefresh((n) => n + 1)}
+          />
+        )}
         {manageTasksOpen && (
           <ManageTasksDialog
             projects={projects}

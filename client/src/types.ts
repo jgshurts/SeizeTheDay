@@ -11,6 +11,9 @@ export interface User {
   themeBackgroundColor: string | null;
   themeLeftImage: string | null;
   themeRightImage: string | null;
+  // Only present in the admin's Users list.
+  hasPassword?: boolean;
+  invitePending?: boolean;
 }
 
 // Another user as anyone may see them -- enough to delegate a task to them

@@ -3,11 +3,59 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { parseDateParam } from "../lib/date";
-import { CalendarAccessError, getEventsForDate } from "../lib/googleCalendar";
+import { CalendarFeedError, checkFeed, forgetFeed, getEventsForDate } from "../lib/icalCalendar";
 import { isOwnProjectId } from "../lib/access";
 
 export const calendarRouter = Router();
 calendarRouter.use(requireAuth);
+
+// Whether a calendar is connected -- the address itself is a secret that
+// grants read access to the whole calendar, so it is never sent back.
+calendarRouter.get(
+  "/settings",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: BigInt(req.user!.userId) },
+      select: { calendarIcalUrl: true },
+    });
+    res.json({ connected: Boolean(user?.calendarIcalUrl) });
+  }),
+);
+
+// Saves (or, with icalUrl null, removes) the user's private iCal address.
+// The address is fetched and parsed first, so a typo is caught here rather
+// than showing up later as an empty Schedule column.
+calendarRouter.put(
+  "/settings",
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const { icalUrl } = req.body as { icalUrl?: unknown };
+    const id = BigInt(req.user!.userId);
+
+    if (icalUrl === null) {
+      const prev = await prisma.user.findUnique({ where: { id }, select: { calendarIcalUrl: true } });
+      if (prev?.calendarIcalUrl) forgetFeed(prev.calendarIcalUrl);
+      await prisma.user.update({ where: { id }, data: { calendarIcalUrl: null } });
+      res.json({ connected: false });
+      return;
+    }
+    if (typeof icalUrl !== "string" || !icalUrl.trim()) {
+      res.status(400).json({ error: "icalUrl must be a web address, or null to disconnect" });
+      return;
+    }
+
+    try {
+      const url = await checkFeed(icalUrl);
+      await prisma.user.update({ where: { id }, data: { calendarIcalUrl: url } });
+      res.json({ connected: true });
+    } catch (err) {
+      if (err instanceof CalendarFeedError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+  }),
+);
 
 calendarRouter.get(
   "/events",
@@ -19,16 +67,16 @@ calendarRouter.get(
     }
 
     const user = await prisma.user.findUnique({ where: { id: BigInt(req.user!.userId) } });
-    if (!user?.googleRefreshToken) {
-      res.status(409).json({ error: "Calendar not connected. Sign out and sign in again to grant access." });
+    if (!user?.calendarIcalUrl) {
+      res.status(409).json({ error: "No calendar connected. Add one in Settings > Calendar." });
       return;
     }
 
     let events;
     try {
-      events = await getEventsForDate(user.googleRefreshToken, dateKey);
+      events = await getEventsForDate(user.calendarIcalUrl, dateKey, { fresh: req.query.fresh === "1" });
     } catch (err) {
-      if (err instanceof CalendarAccessError) {
+      if (err instanceof CalendarFeedError) {
         res.status(409).json({ error: err.message });
         return;
       }

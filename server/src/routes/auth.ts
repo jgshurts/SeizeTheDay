@@ -1,67 +1,115 @@
 import { Router } from "express";
+import { rateLimit } from "express-rate-limit";
 import { prisma } from "../lib/prisma";
 import { signToken } from "../lib/auth";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler } from "../lib/asyncHandler";
-import { exchangeCodeForProfile, getGoogleAuthUrl } from "../lib/googleAuth";
 import { userSelect } from "../lib/userSelect";
-
-const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:5174";
+import { hashInviteToken, hashPassword, passwordProblem, verifyPassword } from "../lib/password";
 
 export const authRouter = Router();
 
-// Full-page redirect, not a fetch call -- there's no session yet to attach
-// a bearer token to, so the browser navigates here directly.
-authRouter.get("/google/start", (_req, res) => {
-  res.redirect(getGoogleAuthUrl());
+// Throttles guessing: this guards the only unauthenticated endpoints that
+// take a secret. Skipped under test, where many logins run back to back.
+const attemptLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "test",
+  message: { error: "Too many attempts. Try again in a few minutes." },
 });
 
-authRouter.get(
-  "/google/callback",
+const BAD_LOGIN = "Incorrect nickname/email or password";
+
+function sessionFor(user: { id: bigint; nickname: string }) {
+  return signToken({ userId: user.id.toString(), nickname: user.nickname });
+}
+
+authRouter.post(
+  "/login",
+  attemptLimiter,
   asyncHandler(async (req, res) => {
-    const code = req.query.code;
-    if (typeof code !== "string") {
-      res.redirect(`${CLIENT_URL}/?authError=missing_code`);
+    const { identifier, password } = req.body as Record<string, unknown>;
+    if (typeof identifier !== "string" || typeof password !== "string" || !identifier || !password) {
+      res.status(400).json({ error: "Nickname or email, and password, are required" });
       return;
     }
 
-    const { profile, refreshToken } = await exchangeCodeForProfile(code);
+    // Nickname or email, ignoring case. If that somehow matches more than
+    // one account, refuse rather than guess which one was meant.
+    const matches = await prisma.user.findMany({
+      where: {
+        OR: [
+          { email: { equals: identifier.trim(), mode: "insensitive" } },
+          { nickname: { equals: identifier.trim(), mode: "insensitive" } },
+        ],
+      },
+      take: 2,
+    });
+    const user = matches.length === 1 ? matches[0] : null;
 
-    // Link by googleId first, then fall back to a pre-provisioned row
-    // created by email in Settings > Users. Sign-in is invite-only: any
-    // other Google account is turned away, except on a brand-new database
-    // with no users at all, where the first sign-in becomes the admin.
-    let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
-    if (!user) {
-      user = await prisma.user.findUnique({ where: { email: profile.email } });
-    }
-
-    const data = {
-      googleId: profile.googleId,
-      email: profile.email,
-      avatarUrl: profile.avatarUrl,
-      ...(refreshToken ? { googleRefreshToken: refreshToken } : {}),
-    };
-
-    if (user) {
-      user = await prisma.user.update({ where: { id: user.id }, data });
-    } else if ((await prisma.user.count()) > 0) {
-      res.redirect(`${CLIENT_URL}/?authError=not_invited`);
+    const ok = await verifyPassword(password, user?.passwordHash ?? null);
+    if (!user || !ok) {
+      res.status(401).json({ error: BAD_LOGIN });
       return;
-    } else {
-      user = await prisma.user.create({
-        data: {
-          ...data,
-          isAdmin: true,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          nickname: profile.email.split("@")[0],
-        },
-      });
     }
 
-    const token = signToken({ userId: user.id.toString(), nickname: user.nickname });
-    res.redirect(`${CLIENT_URL}/?token=${encodeURIComponent(token)}`);
+    res.json({ token: sessionFor(user) });
+  }),
+);
+
+// Shared by new-user invites and admin-issued password resets: the link
+// identifies the person, and opening it lets them choose a password.
+async function findInvitee(token: string) {
+  return prisma.user.findFirst({
+    where: { inviteTokenHash: hashInviteToken(token), inviteExpiresAt: { gt: new Date() } },
+    select: { id: true, firstName: true, nickname: true },
+  });
+}
+
+authRouter.get(
+  "/invite/:token",
+  attemptLimiter,
+  asyncHandler(async (req, res) => {
+    const invitee = await findInvitee(req.params.token);
+    if (!invitee) {
+      res.status(404).json({ error: "This invite link is invalid or has expired" });
+      return;
+    }
+    res.json({ firstName: invitee.firstName, nickname: invitee.nickname });
+  }),
+);
+
+authRouter.post(
+  "/invite/:token",
+  attemptLimiter,
+  asyncHandler(async (req, res) => {
+    const problem = passwordProblem((req.body as Record<string, unknown>).password);
+    if (problem) {
+      res.status(400).json({ error: problem });
+      return;
+    }
+
+    const invitee = await findInvitee(req.params.token);
+    if (!invitee) {
+      res.status(404).json({ error: "This invite link is invalid or has expired" });
+      return;
+    }
+
+    // The where clause repeats the token check so a link can only be spent
+    // once, even if two requests race.
+    const passwordHash = await hashPassword((req.body as { password: string }).password);
+    const { count } = await prisma.user.updateMany({
+      where: { id: invitee.id, inviteTokenHash: hashInviteToken(req.params.token) },
+      data: { passwordHash, inviteTokenHash: null, inviteExpiresAt: null },
+    });
+    if (count !== 1) {
+      res.status(404).json({ error: "This invite link is invalid or has expired" });
+      return;
+    }
+
+    res.json({ token: sessionFor(invitee) });
   }),
 );
 

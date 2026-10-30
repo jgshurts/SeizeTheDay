@@ -2,14 +2,7 @@ import request from "supertest";
 import { app } from "./app";
 import { prisma } from "./lib/prisma";
 import { signToken } from "./lib/auth";
-import { exchangeCodeForProfile } from "./lib/googleAuth";
-
-// Only the code-for-profile exchange is faked, so the sign-in callback can
-// be driven without talking to Google.
-jest.mock("./lib/googleAuth", () => ({
-  ...jest.requireActual("./lib/googleAuth"),
-  exchangeCodeForProfile: jest.fn(),
-}));
+import { hashPassword } from "./lib/password";
 
 const DAY = "2026-10-13";
 
@@ -271,36 +264,107 @@ describe("admin-only settings", () => {
   });
 });
 
-describe("invite-only sign-in", () => {
-  const mockExchange = exchangeCodeForProfile as jest.MockedFunction<typeof exchangeCodeForProfile>;
+describe("password sign-in", () => {
+  const PASSWORD = "correct horse battery";
 
-  function profile(email: string) {
-    return {
-      profile: { googleId: `g-${email}`, email, firstName: "F", lastName: "L", avatarUrl: null },
-      refreshToken: null,
-    } as unknown as Awaited<ReturnType<typeof exchangeCodeForProfile>>;
+  const login = (identifier: string, password: string) =>
+    request(app).post("/api/auth/login").send({ identifier, password });
+
+  async function inviteLink(as: ReturnType<typeof withToken>, userId: bigint) {
+    const res = await as.post(`/api/users/${userId}/invite`);
+    expect(res.status).toBe(200);
+    return res.body.token as string;
   }
 
-  it("turns away a Google account that hasn't been invited", async () => {
-    mockExchange.mockResolvedValueOnce(profile("stranger@example.com"));
-    const res = await request(app).get("/api/auth/google/callback?code=abc");
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("authError=not_invited");
-    expect(await prisma.user.count()).toBe(2);
+  it("rejects sign-in for an account that has no password yet", async () => {
+    expect((await login("mel", PASSWORD)).status).toBe(401);
   });
 
-  it("signs in an invited user", async () => {
-    mockExchange.mockResolvedValueOnce(profile("mel@example.com"));
-    const res = await request(app).get("/api/auth/google/callback?code=abc");
-    expect(res.headers.location).toContain("token=");
+  it("lets an invited user choose a password, then sign in with nickname or email", async () => {
+    const token = await inviteLink(asAdmin(), ids.member);
+
+    const preview = await request(app).get(`/api/auth/invite/${token}`);
+    expect(preview.body).toEqual({ firstName: "Mel", nickname: "mel" });
+
+    const accepted = await request(app).post(`/api/auth/invite/${token}`).send({ password: PASSWORD });
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.token).toBeTruthy();
+
+    expect((await login("mel", PASSWORD)).status).toBe(200);
+    expect((await login("MEL@example.com", PASSWORD)).status).toBe(200);
+    expect((await login("mel", "wrong password!")).status).toBe(401);
   });
 
-  it("makes the very first sign-in on an empty database the admin", async () => {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE users RESTART IDENTITY CASCADE`);
-    mockExchange.mockResolvedValueOnce(profile("first@example.com"));
-    const res = await request(app).get("/api/auth/google/callback?code=abc");
-    expect(res.headers.location).toContain("token=");
-    const user = await prisma.user.findUnique({ where: { email: "first@example.com" } });
-    expect(user?.isAdmin).toBe(true);
+  it("gives the same answer for an unknown user as for a wrong password", async () => {
+    const unknown = await login("nobody", PASSWORD);
+    const wrong = await login("ada", PASSWORD);
+    expect(unknown.status).toBe(401);
+    expect(unknown.body).toEqual(wrong.body);
+  });
+
+  it("spends an invite link on first use", async () => {
+    const token = await inviteLink(asAdmin(), ids.member);
+    await request(app).post(`/api/auth/invite/${token}`).send({ password: PASSWORD });
+    const again = await request(app).post(`/api/auth/invite/${token}`).send({ password: "another long password" });
+    expect(again.status).toBe(404);
+    expect((await request(app).get(`/api/auth/invite/${token}`)).status).toBe(404);
+  });
+
+  it("refuses an expired invite link", async () => {
+    const token = await inviteLink(asAdmin(), ids.member);
+    await prisma.user.update({ where: { id: ids.member }, data: { inviteExpiresAt: new Date(Date.now() - 1000) } });
+    expect((await request(app).get(`/api/auth/invite/${token}`)).status).toBe(404);
+  });
+
+  it("refuses a password that is too short", async () => {
+    const token = await inviteLink(asAdmin(), ids.member);
+    const res = await request(app).post(`/api/auth/invite/${token}`).send({ password: "short" });
+    expect(res.status).toBe(400);
+    expect((await request(app).get(`/api/auth/invite/${token}`)).status).toBe(200);
+  });
+
+  it("stores only a hash of the password and of the invite token", async () => {
+    const token = await inviteLink(asAdmin(), ids.member);
+    const pending = await prisma.user.findUnique({ where: { id: ids.member } });
+    expect(pending?.inviteTokenHash).toBeTruthy();
+    expect(pending?.inviteTokenHash).not.toBe(token);
+
+    await request(app).post(`/api/auth/invite/${token}`).send({ password: PASSWORD });
+    const user = await prisma.user.findUnique({ where: { id: ids.member } });
+    expect(user?.passwordHash).toMatch(/^\$2[aby]\$/);
+    expect(user?.passwordHash).not.toContain(PASSWORD);
+    expect(user?.inviteTokenHash).toBeNull();
+  });
+
+  it("only lets admins issue invite links", async () => {
+    expect((await asMember().post(`/api/users/${ids.admin}/invite`)).status).toBe(403);
+  });
+
+  it("lets a user change their password only with the current one", async () => {
+    await prisma.user.update({ where: { id: ids.member }, data: { passwordHash: await hashPassword(PASSWORD) } });
+
+    const bad = await asMember().patch("/api/users/me/password", {
+      currentPassword: "not the password",
+      newPassword: "a brand new password",
+    });
+    expect(bad.status).toBe(400);
+
+    const ok = await asMember().patch("/api/users/me/password", {
+      currentPassword: PASSWORD,
+      newPassword: "a brand new password",
+    });
+    expect(ok.status).toBe(204);
+    expect((await login("mel", "a brand new password")).status).toBe(200);
+    expect((await login("mel", PASSWORD)).status).toBe(401);
+  });
+
+  it("shows admins who can sign in yet", async () => {
+    await prisma.user.update({ where: { id: ids.admin }, data: { passwordHash: await hashPassword(PASSWORD) } });
+    await inviteLink(asAdmin(), ids.member);
+    const users = (await asAdmin().get("/api/users")).body;
+    const byNick = Object.fromEntries(users.map((u: { nickname: string }) => [u.nickname, u]));
+    expect(byNick.ada).toMatchObject({ hasPassword: true, invitePending: false });
+    expect(byNick.mel).toMatchObject({ hasPassword: false, invitePending: true });
+    expect(JSON.stringify(users)).not.toMatch(/passwordHash|\$2[aby]\$/);
   });
 });

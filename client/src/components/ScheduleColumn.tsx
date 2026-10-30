@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, RefreshCw } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { withAlpha } from "../lib/color";
 import { googleCalendarDayUrl } from "../lib/googleCalendarLink";
@@ -15,7 +15,17 @@ interface ScheduleColumnProps {
   activeDate: string;
   projects: Project[];
   subBannerColor: string | null | undefined;
+  // Bumped when the calendar connection changes, to reload the events.
+  refreshKey?: number;
 }
+
+// `fresh` asks the server to skip its short-lived cache (it still won't
+// re-fetch from the calendar provider more than every 30 seconds).
+const fetchEvents = (date: string, fresh = false) =>
+  api.get<CalendarEvent[]>(`/calendar/events?date=${date}${fresh ? "&fresh=1" : ""}`);
+
+// How often the day's events are re-read from the user's calendar.
+const SCHEDULE_POLL_MS = 15 * 60 * 1000;
 
 const START_HOUR = 7; // 7 AM
 const END_HOUR = 20; // 8 PM -- the grid's bottom edge
@@ -146,7 +156,7 @@ function ProjectTagDot({ event, projects, projectById, onTag }: ProjectTagDotPro
   );
 }
 
-export function ScheduleColumn({ activeDate, projects, subBannerColor }: ScheduleColumnProps) {
+export function ScheduleColumn({ activeDate, projects, subBannerColor, refreshKey = 0 }: ScheduleColumnProps) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -197,9 +207,12 @@ export function ScheduleColumn({ activeDate, projects, subBannerColor }: Schedul
     }
   }, [upcomingEventIds]);
 
+  const lastLoadedAtRef = useRef(Date.now());
+
   useEffect(() => {
     setLoading(true);
     setError(null);
+    lastLoadedAtRef.current = Date.now();
     api
       .get<CalendarEvent[]>(`/calendar/events?date=${activeDate}`)
       .then(setEvents)
@@ -208,7 +221,53 @@ export function ScheduleColumn({ activeDate, projects, subBannerColor }: Schedul
         setEvents([]);
       })
       .finally(() => setLoading(false));
-  }, [activeDate]);
+  }, [activeDate, refreshKey]);
+
+  // Meetings are added, moved and cancelled in the user's own calendar app,
+  // so re-read the day periodically. Quiet on purpose: no loading state, and
+  // a failed poll keeps what's already on screen instead of blanking it.
+  useEffect(() => {
+    function refreshQuietly() {
+      lastLoadedAtRef.current = Date.now();
+      fetchEvents(activeDate)
+        .then((fresh) => {
+          setEvents(fresh);
+          setError(null);
+        })
+        .catch(() => {});
+    }
+
+    const id = window.setInterval(refreshQuietly, SCHEDULE_POLL_MS);
+    // Timers are throttled in background tabs, so catch up on return.
+    function onVisible() {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() - lastLoadedAtRef.current >= SCHEDULE_POLL_MS
+      ) {
+        refreshQuietly();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [activeDate, refreshKey]);
+
+  // The Schedule column's refresh button: same quiet update as the poll,
+  // but bypassing the server cache, with a spinning icon as the only sign.
+  const [refreshing, setRefreshing] = useState(false);
+  function refreshNow() {
+    setRefreshing(true);
+    lastLoadedAtRef.current = Date.now();
+    fetchEvents(activeDate, true)
+      .then((fresh) => {
+        setEvents(fresh);
+        setError(null);
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load calendar"))
+      .finally(() => setRefreshing(false));
+  }
 
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
 
@@ -233,6 +292,16 @@ export function ScheduleColumn({ activeDate, projects, subBannerColor }: Schedul
   return (
     <section className="flex h-full min-h-0 flex-col">
       <ColumnHeader label="Schedule" color={subBannerColor}>
+        <button
+          type="button"
+          onClick={refreshNow}
+          disabled={refreshing}
+          aria-label="Refresh schedule"
+          title="Refresh schedule"
+          className={ADD_BUTTON_CLASS}
+        >
+          <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+        </button>
         <a
           href={googleCalendarDayUrl(activeDate)}
           target="_blank"

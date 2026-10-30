@@ -9,11 +9,10 @@ describe("GET /health", () => {
   });
 });
 
-describe("GET /api/auth/google/start", () => {
-  it("redirects to Google's OAuth consent screen", async () => {
-    const res = await request(app).get("/api/auth/google/start");
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain("accounts.google.com");
+describe("POST /api/auth/login", () => {
+  it("requires both fields", async () => {
+    const res = await request(app).post("/api/auth/login").send({ identifier: "ada" });
+    expect(res.status).toBe(400);
   });
 });
 
