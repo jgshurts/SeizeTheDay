@@ -64,3 +64,22 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             client/dist/ \
             deploy@"$EC2_HOST":/var/www/seizetheday/client/dist/
+
+      - name: Restart application
+        run: |
+          ssh -i ~/.ssh/deploy_key deploy@"$EC2_HOST" <<'REMOTE'
+            sudo -n systemctl restart seizetheday
+
+            # Fail the deploy, with the service's recent log, if it doesn't
+            # come back healthy instead of reporting a green check.
+            for i in $(seq 1 15); do
+              if curl -fsS http://localhost:4000/health; then
+                echo
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "seizetheday did not become healthy after restart" >&2
+            sudo -n journalctl -u seizetheday -n 40 --no-pager || true
+            exit 1
+          REMOTE
