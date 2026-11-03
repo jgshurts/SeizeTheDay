@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarClock, MoreVertical, Trash2, UserRound } from "lucide-react";
+import { ArrowRight, CalendarClock, MoreVertical, Repeat, Trash2, UserRound } from "lucide-react";
 import type { UserSummary } from "../types";
 
 interface TaskActionsMenuProps {
@@ -8,6 +8,9 @@ interface TaskActionsMenuProps {
   onClose: () => void;
   onMoveToDate: () => void;
   onMoveToTomorrow: () => void;
+  // Only for a task that belongs to a recurring series and that the user
+  // owns: opens that series in Settings > Recurring.
+  onEditSeries?: () => void;
   // Omitted when the user can't delete this task (it was delegated to them).
   onDelete?: () => void;
   // Delegation picker, offered only to the task's owner and only for a
@@ -32,6 +35,7 @@ export function TaskActionsMenu({
   onClose,
   onMoveToDate,
   onMoveToTomorrow,
+  onEditSeries,
   onDelete,
   assign,
   selectionCount,
@@ -93,6 +97,18 @@ export function TaskActionsMenu({
           >
             <CalendarClock size={14} /> Move to date...{suffix}
           </button>
+          {onEditSeries && (
+            <button
+              type="button"
+              onClick={() => {
+                onEditSeries();
+                onClose();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100"
+            >
+              <Repeat size={14} /> Edit repeat...
+            </button>
+          )}
           {assign && (
             <label className="flex w-full items-center gap-2 px-3 py-1.5 text-slate-700">
               <UserRound size={14} className="shrink-0" />

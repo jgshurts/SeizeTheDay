@@ -27,8 +27,8 @@ model User {
 
   // One-time invite / password-reset link. Only the SHA-256 of the token is
   // stored, so a database leak doesn't hand out working links.
-  inviteTokenHash   String?   @unique @map("invite_token_hash")
-  inviteExpiresAt   DateTime? @map("invite_expires_at")
+  inviteTokenHash String?   @unique @map("invite_token_hash")
+  inviteExpiresAt DateTime? @map("invite_expires_at")
 
   // Private iCal feed address (Google Calendar > Settings > "Secret address
   // in iCal format") shown in the Schedule column. It grants read access to
@@ -49,11 +49,12 @@ model User {
   // projects, tasks, notes and theme.
   isAdmin Boolean @default(false) @map("is_admin")
 
-  ownedTasks       Task[]             @relation("TaskOwner")
-  assignedTasks    Task[]             @relation("TaskAssignee")
+  ownedTasks       Task[]            @relation("TaskOwner")
+  assignedTasks    Task[]            @relation("TaskAssignee")
   notes            Note[]
   projects         Project[]
   eventProjectTags EventProjectTag[]
+  recurringTasks   RecurringTask[]
 
   @@map("users")
 }
@@ -64,7 +65,8 @@ model PriorityGroup {
   prtyCode    String  @map("prty_code") @db.Char(1)
   description String?
 
-  tasks Task[]
+  tasks          Task[]
+  recurringTasks RecurringTask[]
 
   @@map("priority_groups")
 }
@@ -98,10 +100,11 @@ model Project {
   description String?
   color       String?
 
-  owner     User              @relation(fields: [ownerId], references: [id])
-  tasks     Task[]
-  notes     Note[]
-  eventTags EventProjectTag[]
+  owner          User              @relation(fields: [ownerId], references: [id])
+  tasks          Task[]
+  notes          Note[]
+  eventTags      EventProjectTag[]
+  recurringTasks RecurringTask[]
 
   @@map("projects")
 }
@@ -138,7 +141,13 @@ model Task {
   createdAt       DateTime  @default(now()) @map("created_at")
   datePlanned     DateTime  @map("date_planned") @db.Date
   completedAt     DateTime? @map("completed_at")
+  // Set on tasks generated from a recurring series (see RecurringTask). The
+  // unique pair below is what lets generation be re-run safely: an
+  // occurrence for a given series and date can only exist once. Null for
+  // ordinary tasks, which the constraint ignores.
+  seriesId        BigInt?   @map("series_id")
 
+  series        RecurringTask? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   project       Project?       @relation(fields: [projectId], references: [id])
   owner         User           @relation("TaskOwner", fields: [ownerId], references: [id])
   assignee      User           @relation("TaskAssignee", fields: [assigneeId], references: [id])
@@ -146,6 +155,7 @@ model Task {
   status        Status?        @relation(fields: [statusId], references: [id])
   blockerNote   Note?          @relation("TaskBlockerNote", fields: [blockerNoteId], references: [id], onDelete: SetNull)
 
+  @@unique([seriesId, datePlanned])
   @@map("tasks")
 }
 
@@ -165,4 +175,52 @@ model Note {
   blockedTasks Task[]   @relation("TaskBlockerNote")
 
   @@map("notes")
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+// A repeating task, e.g. "take out the trash" every Tuesday. It is only a
+// template: the server turns it into ordinary Task rows (linked by
+// Task.seriesId) over a rolling window ahead of today, so everything that
+// works on a task -- status, notes, moving it, search -- works on an
+// occurrence too. See lib/recurrence.ts for how the fields below combine.
+model RecurringTask {
+  id               BigInt              @id @default(autoincrement())
+  ownerId          BigInt              @map("owner_id")
+  projectId        BigInt?             @map("project_id")
+  priorityGroupId  BigInt?             @map("priority_group_id")
+  description      String
+  frequency        RecurrenceFrequency
+  // Every N days / weeks / months / years.
+  interval         Int                 @default(1)
+  // WEEKLY: which days of the week, 0 = Sunday .. 6 = Saturday.
+  weekdays         Int[]
+  // MONTHLY / YEARLY: day of the month, 1-31, or -1 for the last day.
+  // Days a month doesn't have (the 31st in April) fall on its last day.
+  monthDay         Int?                @map("month_day")
+  // YEARLY: month, 1-12.
+  month            Int?
+  startDate        DateTime            @map("start_date") @db.Date
+  // Optional "until" date; null repeats indefinitely.
+  endDate          DateTime?           @map("end_date") @db.Date
+  // When true, an occurrence nobody finished is dropped once its day has
+  // passed, instead of lingering in the Unfinished list.
+  skipIfMissed     Boolean             @default(false) @map("skip_if_missed")
+  // The last day occurrences have been created for. Generation only ever
+  // looks past this, so an occurrence the user deleted ("skip this Tuesday")
+  // isn't quietly recreated on the next sync. Null until first generated.
+  generatedThrough DateTime?           @map("generated_through") @db.Date
+  createdAt        DateTime            @default(now()) @map("created_at")
+
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project       Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  priorityGroup PriorityGroup? @relation(fields: [priorityGroupId], references: [id], onDelete: SetNull)
+  tasks         Task[]
+
+  @@map("recurring_tasks")
 }
