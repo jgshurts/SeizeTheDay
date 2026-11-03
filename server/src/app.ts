@@ -9,6 +9,7 @@ import { priorityGroupsRouter } from "./routes/priorityGroups";
 import { usersRouter } from "./routes/users";
 import { projectsRouter } from "./routes/projects";
 import { calendarRouter } from "./routes/calendar";
+import { recurringTasksRouter } from "./routes/recurringTasks";
 
 export const app = express();
 
@@ -34,6 +35,7 @@ app.use("/api/priority-groups", priorityGroupsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/calendar", calendarRouter);
+app.use("/api/recurring-tasks", recurringTasksRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

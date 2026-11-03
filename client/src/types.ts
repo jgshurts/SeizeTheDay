@@ -77,6 +77,8 @@ export interface Task {
   createdAt: string;
   datePlanned: string;
   completedAt: string | null;
+  // Set on a task generated from a recurring series.
+  seriesId: string | null;
   status: Status | null;
   priorityGroup: PriorityGroup | null;
   blockerNote: { id: string; shortRef: string | null; noteText: string | null } | null;
@@ -94,4 +96,25 @@ export interface Note {
   createdAt: string;
   contextDate: string;
   project: Project | null;
+}
+
+export type RecurrenceFrequency = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+
+// A repeating task's template; the server turns it into ordinary tasks.
+export interface RecurringTask {
+  id: string;
+  description: string;
+  projectId: string | null;
+  priorityGroupId: string | null;
+  skipIfMissed: boolean;
+  frequency: RecurrenceFrequency;
+  interval: number;
+  // WEEKLY: 0 = Sunday .. 6 = Saturday.
+  weekdays: number[];
+  // MONTHLY / YEARLY: 1-31, or -1 for the last day.
+  monthDay: number | null;
+  // YEARLY: 1-12.
+  month: number | null;
+  startDate: string;
+  endDate: string | null;
 }

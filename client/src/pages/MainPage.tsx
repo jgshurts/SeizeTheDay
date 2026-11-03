@@ -86,6 +86,8 @@ export function MainPage() {
   const [activeDate, setActiveDate] = useState(() => toLocalDateKey(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [calendarRefresh, setCalendarRefresh] = useState(0);
+  // Set when Settings is opened from a task's "Edit repeat" action.
+  const [settingsSeriesId, setSettingsSeriesId] = useState<string | null>(null);
   const [manageTasksOpen, setManageTasksOpen] = useState(false);
   const [unfinishedTasksOpen, setUnfinishedTasksOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -166,6 +168,36 @@ export function MainPage() {
   useEffect(() => {
     fetchTasks();
   }, [activeDate, showCompleted, projectFilterKey]);
+
+  // Recurring tasks are created on demand: when the app opens, and again
+  // when the local date rolls over (or the tab wakes up on a new day), so
+  // there's no scheduled job on the server. A no-op until the day changes.
+  const fetchTasksRef = useRef(fetchTasks);
+  fetchTasksRef.current = fetchTasks;
+  const lastSyncedDayRef = useRef("");
+  useEffect(() => {
+    async function syncRecurring() {
+      const today = toLocalDateKey(new Date());
+      if (today === lastSyncedDayRef.current) return;
+      lastSyncedDayRef.current = today;
+      try {
+        const { created } = await api.post<{ created: number }>("/recurring-tasks/sync", { today });
+        if (created > 0) fetchTasksRef.current();
+      } catch {
+        lastSyncedDayRef.current = ""; // try again next time
+      }
+    }
+    syncRecurring();
+    const id = window.setInterval(syncRecurring, 10 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") syncRecurring();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Dragging the Tasks/Notes divider. Position is derived straight from the
   // mouse event rather than component state, so there's no stale-closure risk
@@ -282,6 +314,10 @@ export function MainPage() {
         onOpenUnfinishedTasksDialog={() => setUnfinishedTasksOpen(true)}
         onOpenSearchTasksDialog={() => setSearchOpen(true)}
         onOpenManageTasks={() => setManageTasksOpen(true)}
+        onEditSeries={(seriesId) => {
+          setSettingsSeriesId(seriesId);
+          setSettingsOpen(true);
+        }}
         subBannerColor={user?.themeSubBannerColor}
       />
     </NoteRefOpenerProvider>
@@ -419,8 +455,14 @@ export function MainPage() {
 
         {settingsOpen && (
           <SettingsDialog
-            onClose={() => setSettingsOpen(false)}
+            onClose={() => {
+              setSettingsOpen(false);
+              setSettingsSeriesId(null);
+            }}
             onCalendarChanged={() => setCalendarRefresh((n) => n + 1)}
+            onTasksChanged={fetchTasks}
+            initialTab={settingsSeriesId ? "recurring" : undefined}
+            initialSeriesId={settingsSeriesId}
           />
         )}
         {manageTasksOpen && (

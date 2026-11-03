@@ -7,14 +7,16 @@ import { ProjectsTab } from "./ProjectsTab";
 import { ThemeTab } from "./ThemeTab";
 import { CalendarTab } from "./CalendarTab";
 import { AccountTab } from "./AccountTab";
+import { RecurringTab } from "./RecurringTab";
 import { useAuth } from "../../context/AuthContext";
 
-type Tab = "projects" | "statuses" | "priorityGroups" | "users" | "calendar" | "theme" | "account";
+export type Tab = "projects" | "recurring" | "statuses" | "priorityGroups" | "users" | "calendar" | "theme" | "account";
 
 // Statuses, Priority Groups and Users are one shared set for everyone, so
 // only admins see (and can change) them; the server enforces the same.
 const TABS: { id: Tab; label: string; adminOnly?: boolean }[] = [
   { id: "projects", label: "Projects" },
+  { id: "recurring", label: "Recurring" },
   { id: "statuses", label: "Statuses", adminOnly: true },
   { id: "priorityGroups", label: "Priority Groups", adminOnly: true },
   { id: "users", label: "Users", adminOnly: true },
@@ -26,12 +28,19 @@ const TABS: { id: Tab; label: string; adminOnly?: boolean }[] = [
 export function SettingsDialog({
   onClose,
   onCalendarChanged,
+  onTasksChanged,
+  initialTab,
+  initialSeriesId,
 }: {
   onClose: () => void;
   onCalendarChanged: () => void;
+  // Recurring tasks were added, changed or removed -- the day list is stale.
+  onTasksChanged: () => void;
+  initialTab?: Tab;
+  initialSeriesId?: string | null;
 }) {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>("projects");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "projects");
   const tabs = TABS.filter((t) => !t.adminOnly || user?.isAdmin);
 
   return (
@@ -54,6 +63,9 @@ export function SettingsDialog({
       </div>
 
       {tab === "projects" && <ProjectsTab />}
+      {tab === "recurring" && (
+        <RecurringTab initialSeriesId={initialSeriesId} onChanged={onTasksChanged} />
+      )}
       {tab === "statuses" && <StatusesTab />}
       {tab === "priorityGroups" && <PriorityGroupsTab />}
       {tab === "users" && <UsersTab />}
