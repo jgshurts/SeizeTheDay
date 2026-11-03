@@ -51,6 +51,13 @@ jobs:
             git reset --hard origin/master
             npm ci
             npm run prisma:generate --workspace server
+
+            # Apply pending migrations before the new build starts. Neon's
+            # pooled URL (pgbouncer) can't take Prisma's migration lock, so
+            # use the direct one when server/.env defines it.
+            cd server
+            set -a; . ./.env; set +a
+            DATABASE_URL="${DATABASE_URL_UNPOOLED:-$DATABASE_URL}" npx prisma migrate deploy
           REMOTE
 
       - name: Transfer production builds
