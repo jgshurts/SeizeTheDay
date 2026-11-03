@@ -1,15 +1,15 @@
 const TOKEN_KEY = "std_token";
 
 export function getToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string): void {
-  sessionStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
-  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 class ApiError extends Error {
@@ -31,7 +31,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`/api${path}`, { ...options, headers });
 
+  // The server renews an aging session by sending a replacement token.
+  const refreshed = res.headers.get("X-Refreshed-Token");
+  if (refreshed) setToken(refreshed);
+
   if (!res.ok) {
+    // An expired or revoked session: drop it and go back to the login page.
+    // (/auth/* is excluded so a wrong password still shows its own error.)
+    if (res.status === 401 && token && !path.startsWith("/auth/")) {
+      clearToken();
+      window.location.reload();
+    }
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new ApiError(res.status, body.error ?? "Request failed");
   }

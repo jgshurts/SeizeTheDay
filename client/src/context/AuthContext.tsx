@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // On first mount, rehydrate the session from a token already in
-  // sessionStorage and resolve /auth/me to populate the user.
+  // localStorage and resolve /auth/me to populate the user.
   useEffect(() => {
     if (!getToken()) {
       setLoading(false);
