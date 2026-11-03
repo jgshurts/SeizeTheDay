@@ -34,6 +34,8 @@ interface TasksColumnProps {
   statuses: Status[];
   priorityGroups: PriorityGroup[];
   projects: Project[];
+  // Project a new task starts in (the first one picked in the Banner filter).
+  defaultProjectId: string | null;
   // Who's signed in, and everyone a task can be delegated to. A task the
   // signed-in user doesn't own was delegated to them: they can change its
   // status, date and priority, and nothing else (the server enforces this).
@@ -176,6 +178,7 @@ export function TasksColumn({
   statuses,
   priorityGroups,
   projects,
+  defaultProjectId,
   currentUserId,
   users,
   showCompleted,
@@ -192,6 +195,8 @@ export function TasksColumn({
 }: TasksColumnProps) {
   const [newDescription, setNewDescription] = useState("");
   const [adding, setAdding] = useState(false);
+  // Project chosen in the phone's New Task editor; the desktop row has no picker.
+  const [newProjectId, setNewProjectId] = useState<string | null>(null);
   const [newPriorityGroupId, setNewPriorityGroupId] = useState<string | null>(null);
   const [newPrtyOrdinal, setNewPrtyOrdinal] = useState<number | null>(null);
   const [moveDialogTarget, setMoveDialogTarget] = useState<"unfinished" | "selected" | null>(null);
@@ -224,6 +229,7 @@ export function TasksColumn({
     const { priorityGroupId, prtyOrdinal } = computeDefaultTaskPriority(tasks, priorityGroups);
     setNewPriorityGroupId(priorityGroupId);
     setNewPrtyOrdinal(prtyOrdinal);
+    setNewProjectId(defaultProjectId);
     setAdding(true);
   }
 
@@ -440,7 +446,7 @@ export function TasksColumn({
             </tr>
           </thead>
           <tbody>
-            {adding && (
+            {adding && !isMobile && (
               <tr className="border-t border-slate-100">
                 {!isMobile && <td className="px-1 py-1" />}
                 <td className="px-1 py-1" />
@@ -715,6 +721,20 @@ export function TasksColumn({
           />
         );
       })()}
+
+      {isMobile && adding && (
+        <MobileTextEditor
+          title="New Task"
+          initialValue=""
+          onSave={async (description) => {
+            setAdding(false);
+            if (description.trim()) await onAddTask(description.trim(), newProjectId);
+          }}
+          projects={projects}
+          projectId={newProjectId}
+          onProjectChange={setNewProjectId}
+        />
+      )}
 
       {isMobile &&
         (() => {

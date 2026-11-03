@@ -308,6 +308,7 @@ export function MainPage() {
         showCompleted={showCompleted}
         onShowCompletedChange={setShowCompleted}
         onAddTask={(description, projectId) => addTask(description, { projectId })}
+        defaultProjectId={defaultProjectId}
         onUpdateTask={updateTask}
         onDeleteTask={deleteTask}
         onRenumberDay={renumberDay}
