@@ -38,3 +38,13 @@ export function formatDisplay(key: string): string {
     timeZone: "UTC",
   });
 }
+
+// "Tue, Nov 3" -- the day without its year, for tight spaces.
+export function formatShortDate(key: string): string {
+  return fromDateKey(key).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, LogOut, RefreshCw, Settings } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { addDays, formatWeekday, toLocalDateKey } from "../lib/date";
+import { addDays, formatShortDate, formatWeekday, toLocalDateKey } from "../lib/date";
 import { readableTextColor } from "../lib/color";
+import { DateFilterDialog } from "./DateFilterDialog";
 import { ProjectFilterDialog } from "./ProjectFilterDialog";
 import type { Project } from "../types";
 
@@ -32,11 +33,11 @@ export function Banner({
   const { user, logout } = useAuth();
   const bannerColor = user?.themeBannerColor;
   const [projectFilterOpen, setProjectFilterOpen] = useState(false);
+  const [dateDialogOpen, setDateDialogOpen] = useState(false);
   const selectedProjects = projects.filter((p) => contextProjectIds.includes(p.id));
   // Only a single selected project can lend the button its color; several
   // at once fall back to the same amber as a single uncolored project.
-  const contextProjectColor =
-    selectedProjects.length === 1 ? selectedProjects[0].color : null;
+  const contextProjectColor = selectedProjects.length === 1 ? selectedProjects[0].color : null;
   const projectFilterLabel =
     contextProjectIds.length === 0
       ? "All Projects"
@@ -54,79 +55,93 @@ export function Banner({
     >
       {!compact && <h1 className="text-lg font-semibold text-white">Seize the Day</h1>}
 
-      <div className={`flex items-center ${compact ? "gap-1" : "gap-2"}`}>
-        <span
-          className={`font-medium text-white/90 ${compact ? "w-8 text-xs" : "w-20 text-sm"}`}
-        >
-          {formatWeekday(activeDate, compact)}
-        </span>
-
+      {compact ? (
         <button
           type="button"
-          aria-label="Previous day"
-          onClick={() => onDateChange(addDays(activeDate, -1))}
-          className={`rounded border border-white/40 bg-white/10 text-white hover:bg-white/25 ${compact ? "p-0.5" : "p-1"}`}
-        >
-          <ChevronLeft size={compact ? 16 : 20} />
-        </button>
-
-        <input
-          type="date"
-          value={activeDate}
-          onChange={(e) => onDateChange(e.target.value)}
-          className={`rounded border border-emerald-800 bg-white text-sm text-slate-800 ${compact ? "px-1 py-0.5" : "px-2 py-1"}`}
-        />
-
-        <button
-          type="button"
-          aria-label="Next day"
-          onClick={() => onDateChange(addDays(activeDate, 1))}
-          className={`rounded border border-white/40 bg-white/10 text-white hover:bg-white/25 ${compact ? "p-0.5" : "p-1"}`}
-        >
-          <ChevronRight size={compact ? 16 : 20} />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onDateChange(toLocalDateKey(new Date()))}
-          title={isToday ? undefined : "Not viewing today — jump back"}
-          className={`rounded border font-medium ${
+          aria-label="Change date or projects"
+          onClick={() => setDateDialogOpen(true)}
+          className={`flex items-center gap-1 rounded border px-2 py-0.5 text-sm font-medium ${
             isToday
-              ? "border-white/40 bg-white/10 text-white hover:bg-white/25"
-              : "border-amber-500 bg-amber-300 text-amber-950 shadow-sm hover:bg-amber-200"
-          } ${
-            compact ? "px-1 py-0.5 text-xs" : "px-2 py-1 text-sm"
+              ? "border-white/40 bg-white/10 text-white"
+              : "border-amber-500 bg-amber-300 text-amber-950 shadow-sm"
           }`}
         >
-          Today
+          {formatShortDate(activeDate)}
+          {contextProjectIds.length > 0 && (
+            <span aria-label="Project filter on" className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+          )}
         </button>
+      ) : (
+        <div className={`flex items-center ${compact ? "gap-1" : "gap-2"}`}>
+          <span className={`font-medium text-white/90 ${compact ? "w-8 text-xs" : "w-20 text-sm"}`}>
+            {formatWeekday(activeDate, compact)}
+          </span>
 
-        <button
-          type="button"
-          aria-label="Filter projects"
-          title={selectedProjects.map((p) => p.name).join(", ") || "All Projects"}
-          onClick={() => setProjectFilterOpen(true)}
-          className={`flex items-center gap-1 rounded border text-sm ${compact ? "max-w-[90px] px-1 py-0.5" : "ml-2 px-2 py-1"} ${
-            contextProjectIds.length > 0
-              ? contextProjectColor
-                ? "font-medium"
-                : "border-amber-400 bg-amber-100 font-medium text-amber-800"
-              : "border-emerald-800 bg-white text-slate-700"
-          }`}
-          style={
-            contextProjectColor
-              ? {
-                  backgroundColor: contextProjectColor,
-                  borderColor: contextProjectColor,
-                  color: readableTextColor(contextProjectColor),
-                }
-              : undefined
-          }
-        >
-          <span className="truncate">{projectFilterLabel}</span>
-          <ChevronDown size={14} className="shrink-0" />
-        </button>
-      </div>
+          <button
+            type="button"
+            aria-label="Previous day"
+            onClick={() => onDateChange(addDays(activeDate, -1))}
+            className={`rounded border border-white/40 bg-white/10 text-white hover:bg-white/25 ${compact ? "p-0.5" : "p-1"}`}
+          >
+            <ChevronLeft size={compact ? 16 : 20} />
+          </button>
+
+          <input
+            type="date"
+            value={activeDate}
+            onChange={(e) => onDateChange(e.target.value)}
+            className={`rounded border border-emerald-800 bg-white text-sm text-slate-800 ${compact ? "px-1 py-0.5" : "px-2 py-1"}`}
+          />
+
+          <button
+            type="button"
+            aria-label="Next day"
+            onClick={() => onDateChange(addDays(activeDate, 1))}
+            className={`rounded border border-white/40 bg-white/10 text-white hover:bg-white/25 ${compact ? "p-0.5" : "p-1"}`}
+          >
+            <ChevronRight size={compact ? 16 : 20} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDateChange(toLocalDateKey(new Date()))}
+            title={isToday ? undefined : "Not viewing today — jump back"}
+            className={`rounded border font-medium ${
+              isToday
+                ? "border-white/40 bg-white/10 text-white hover:bg-white/25"
+                : "border-amber-500 bg-amber-300 text-amber-950 shadow-sm hover:bg-amber-200"
+            } ${compact ? "px-1 py-0.5 text-xs" : "px-2 py-1 text-sm"}`}
+          >
+            Today
+          </button>
+
+          <button
+            type="button"
+            aria-label="Filter projects"
+            title={selectedProjects.map((p) => p.name).join(", ") || "All Projects"}
+            onClick={() => setProjectFilterOpen(true)}
+            className={`flex items-center gap-1 rounded border text-sm ${compact ? "max-w-[90px] px-1 py-0.5" : "ml-2 px-2 py-1"} ${
+              contextProjectIds.length > 0
+                ? contextProjectColor
+                  ? "font-medium"
+                  : "border-amber-400 bg-amber-100 font-medium text-amber-800"
+                : "border-emerald-800 bg-white text-slate-700"
+            }`}
+            style={
+              contextProjectColor
+                ? {
+                    backgroundColor: contextProjectColor,
+                    borderColor: contextProjectColor,
+                    color: readableTextColor(contextProjectColor),
+                  }
+                : undefined
+            }
+          >
+            <span className="truncate">{projectFilterLabel}</span>
+            <ChevronDown size={14} className="shrink-0" />
+          </button>
+        </div>
+      )}
 
       <div className={`flex items-center ${compact ? "gap-1" : "gap-3"}`}>
         <button
@@ -176,6 +191,16 @@ export function Banner({
         </button>
       </div>
 
+      {dateDialogOpen && (
+        <DateFilterDialog
+          activeDate={activeDate}
+          onDateChange={onDateChange}
+          projectFilterLabel={projectFilterLabel}
+          projectFilterActive={contextProjectIds.length > 0}
+          onOpenProjectFilter={() => setProjectFilterOpen(true)}
+          onClose={() => setDateDialogOpen(false)}
+        />
+      )}
       {projectFilterOpen && (
         <ProjectFilterDialog
           projects={projects}
