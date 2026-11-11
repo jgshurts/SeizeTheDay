@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { Banner } from "../components/Banner";
 import { ManageTasksDialog } from "../components/ManageTasksDialog";
 import { UnfinishedTasksDialog } from "../components/UnfinishedTasksDialog";
+import { TaskReportDialog } from "../components/TaskReportDialog";
 import { SearchTasksDialog } from "../components/SearchTasksDialog";
 import { TasksColumn } from "../components/TasksColumn";
 import { NotesColumn } from "../components/NotesColumn";
@@ -91,6 +92,7 @@ export function MainPage() {
   const [manageTasksOpen, setManageTasksOpen] = useState(false);
   const [unfinishedTasksOpen, setUnfinishedTasksOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   // A note opened from an @REF link in the Tasks column -- likely written on
   // a different day, so it lives here rather than in NotesColumn's list.
   const [refNote, setRefNote] = useState<Note | null>(null);
@@ -315,6 +317,7 @@ export function MainPage() {
         onOpenUnfinishedTasksDialog={() => setUnfinishedTasksOpen(true)}
         onOpenSearchTasksDialog={() => setSearchOpen(true)}
         onOpenManageTasks={() => setManageTasksOpen(true)}
+        onOpenReport={() => setReportOpen(true)}
         onEditSeries={(seriesId) => {
           setSettingsSeriesId(seriesId);
           setSettingsOpen(true);
@@ -493,6 +496,7 @@ export function MainPage() {
             onClose={() => setRefNote(null)}
           />
         )}
+        {reportOpen && <TaskReportDialog projects={projects} onClose={() => setReportOpen(false)} />}
         {searchOpen && (
           <SearchTasksDialog
             projects={projects}

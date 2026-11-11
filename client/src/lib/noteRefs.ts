@@ -28,3 +28,10 @@ export function parseNoteRefs(text: string): NoteRefPart[] {
 export function toMarkdownNoteRefLinks(text: string): string {
   return text.replace(NOTE_REF_PATTERN, (_match, shortRef: string) => `[@${shortRef}](noteref:${shortRef})`);
 }
+
+// Plain-text version of a description with every "@REF" removed, for output
+// (e.g. reports) where a note link would be meaningless. Whitespace left
+// behind by a removed ref is collapsed and trimmed.
+export function stripNoteRefs(text: string): string {
+  return text.replace(NOTE_REF_PATTERN, "").replace(/[ \t]{2,}/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
+}

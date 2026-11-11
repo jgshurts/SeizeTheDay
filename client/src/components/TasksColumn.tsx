@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
+  ClipboardList,
   Download,
   History,
   ListOrdered,
@@ -50,6 +51,7 @@ interface TasksColumnProps {
   onOpenUnfinishedTasksDialog: () => void;
   onOpenSearchTasksDialog: () => void;
   onOpenManageTasks: () => void;
+  onOpenReport: () => void;
   // Opens a recurring series in Settings, from a task's actions menu.
   onEditSeries: (seriesId: string) => void;
   subBannerColor: string | null | undefined;
@@ -190,6 +192,7 @@ export function TasksColumn({
   onOpenUnfinishedTasksDialog,
   onOpenSearchTasksDialog,
   onOpenManageTasks,
+  onOpenReport,
   onEditSeries,
   subBannerColor,
 }: TasksColumnProps) {
@@ -348,6 +351,15 @@ export function TasksColumn({
             className={ICON_BUTTON_CLASS}
           >
             <History size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenReport}
+            title="Task Report"
+            aria-label="Task Report"
+            className={ICON_BUTTON_CLASS}
+          >
+            <ClipboardList size={16} />
           </button>
           <button
             type="button"
