@@ -4,7 +4,7 @@ import { Modal } from "./Modal";
 import { MoveTasksDialog } from "./MoveTasksDialog";
 import { api } from "../lib/api";
 import { addDays, formatDisplay, toLocalDateKey } from "../lib/date";
-import { downloadCsvFile, formatDatePlannedForExport } from "../lib/csv";
+import { downloadTaskExportXlsx } from "../lib/taskExportXlsx";
 import { defaultMoveDate } from "../lib/moveDate";
 import type { Project, Task } from "../types";
 
@@ -62,9 +62,8 @@ function sortTasks(tasks: Task[], key: SortKey, direction: SortDirection): Task[
   });
 }
 
-// The status codes are single expressive characters on screen (√, x, >, -),
-// but those don't render reliably once they land in Excel -- spelled out
-// here for the export only. Anything else (a custom status code) passes
+// The status codes are single expressive characters on screen (√, x, >, -);
+// spelled out here for the export, which reads better as words. Anything else (a custom status code) passes
 // through unchanged rather than disappearing.
 const STATUS_CODE_LABELS: Record<string, string> = {
   "√": "Done",
@@ -78,17 +77,20 @@ function statusLabelForExport(statusCode: string | undefined): string {
   return STATUS_CODE_LABELS[statusCode.toUpperCase()] ?? statusCode;
 }
 
-function downloadCsv(tasks: Task[]): void {
-  const header = ["Date", "Status", "Priority Group", "Priority", "Description", "Project"];
-  const rows = tasks.map((t) => [
-    formatDatePlannedForExport(t.datePlanned),
-    statusLabelForExport(t.status?.statusCode),
-    t.priorityGroup?.prtyCode ?? "",
-    t.prtyOrdinal != null ? String(t.prtyOrdinal) : "",
-    t.description,
-    t.project?.name ?? "",
-  ]);
-  downloadCsvFile(`task-export-${new Date().toISOString().slice(0, 10)}.csv`, header, rows);
+function downloadXlsx(tasks: Task[]): Promise<void> {
+  return downloadTaskExportXlsx(
+    `task-export-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    tasks.map((t) => ({
+      date: t.datePlanned,
+      status: statusLabelForExport(t.status?.statusCode),
+      statusBackground: t.status?.backgroundColor ?? null,
+      statusForeground: t.status?.foregroundColor ?? null,
+      priorityGroup: t.priorityGroup?.prtyCode ?? "",
+      priority: t.prtyOrdinal,
+      description: t.description,
+      project: t.project?.name ?? "",
+    })),
+  );
 }
 
 export function ManageTasksDialog({
@@ -254,7 +256,7 @@ export function ManageTasksDialog({
 
           <button
             type="button"
-            onClick={() => downloadCsv(sorted)}
+            onClick={() => downloadXlsx(sorted)}
             disabled={sorted.length === 0}
             className="flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
