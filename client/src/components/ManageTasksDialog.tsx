@@ -4,6 +4,7 @@ import { Modal } from "./Modal";
 import { MoveTasksDialog } from "./MoveTasksDialog";
 import { api } from "../lib/api";
 import { addDays, formatDisplay, toLocalDateKey } from "../lib/date";
+import { downloadCsvFile, formatDatePlannedForExport } from "../lib/csv";
 import { defaultMoveDate } from "../lib/moveDate";
 import type { Project, Task } from "../types";
 
@@ -61,16 +62,6 @@ function sortTasks(tasks: Task[], key: SortKey, direction: SortDirection): Task[
   });
 }
 
-// mm/dd/yyyy -- Excel only recognizes a cell as a sortable date in this (or
-// its own locale's) numeric form, not the "Mon, Sep 1, 2026" display format
-// used in the on-screen table.
-function formatDatePlannedForExport(datePlanned: string): string {
-  const d = new Date(datePlanned);
-  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${month}/${day}/${d.getUTCFullYear()}`;
-}
-
 // The status codes are single expressive characters on screen (√, x, >, -),
 // but those don't render reliably once they land in Excel -- spelled out
 // here for the export only. Anything else (a custom status code) passes
@@ -87,14 +78,6 @@ function statusLabelForExport(statusCode: string | undefined): string {
   return STATUS_CODE_LABELS[statusCode.toUpperCase()] ?? statusCode;
 }
 
-// Quotes/escapes a field for CSV per RFC 4180 -- Excel opens .csv files
-// natively, so this avoids pulling in a full xlsx-writing dependency just
-// for a report export.
-function csvField(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
-
 function downloadCsv(tasks: Task[]): void {
   const header = ["Date", "Status", "Priority Group", "Priority", "Description", "Project"];
   const rows = tasks.map((t) => [
@@ -105,15 +88,7 @@ function downloadCsv(tasks: Task[]): void {
     t.description,
     t.project?.name ?? "",
   ]);
-  const csv = [header, ...rows].map((row) => row.map(csvField).join(",")).join("\r\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `task-export-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadCsvFile(`task-export-${new Date().toISOString().slice(0, 10)}.csv`, header, rows);
 }
 
 export function ManageTasksDialog({

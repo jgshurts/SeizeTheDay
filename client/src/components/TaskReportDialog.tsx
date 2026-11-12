@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import { Modal } from "./Modal";
 import { api } from "../lib/api";
 import { addDays, formatDisplay, toLocalDateKey } from "../lib/date";
+import { downloadTaskReportXlsx } from "../lib/taskReportXlsx";
 import { stripNoteRefs } from "../lib/noteRefs";
 import { groupTasksForReport } from "../lib/taskReport";
 import type { Project, Task } from "../types";
@@ -37,6 +39,24 @@ export function TaskReportDialog({ projects, onClose }: { projects: Project[]; o
 
   const groups = useMemo(() => groupTasksForReport(tasks), [tasks]);
   const showProject = projectId === null;
+
+  async function exportXlsx() {
+    await downloadTaskReportXlsx({
+      filename: `task-report-${fromDate}-to-${toDate}.xlsx`,
+      fromDate,
+      toDate,
+      projectName: projects.find((p) => p.id === projectId)?.name ?? "All Projects",
+      groups: groups.map((g) => ({
+        key: g.key,
+        label: g.label,
+        rows: g.tasks.map((t) => ({
+          date: t.datePlanned,
+          description: stripNoteRefs(t.description),
+          project: t.project?.name ?? "",
+        })),
+      })),
+    });
+  }
 
   return (
     <Modal title="Task Report" onClose={onClose} maxWidthClassName="max-w-[772px]">
@@ -76,6 +96,15 @@ export function TaskReportDialog({ projects, onClose }: { projects: Project[]; o
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={exportXlsx}
+          disabled={loading || tasks.length === 0}
+          className="ml-auto flex items-center gap-1.5 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download size={14} />
+          Export to Excel
+        </button>
       </div>
 
       {loading ? (
