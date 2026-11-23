@@ -43,3 +43,11 @@ describe("session token", () => {
     });
   });
 });
+
+describe("API caching", () => {
+  it("marks /api responses no-store so refresh headers can't be replayed from cache", async () => {
+    const { app } = await import("./app");
+    const res = await request(app).get("/api/statuses");
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+});

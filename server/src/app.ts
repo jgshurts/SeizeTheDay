@@ -27,6 +27,14 @@ app.use(express.json({ limit: "10mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
+// API responses are per-user and may carry an X-Refreshed-Token header. If a
+// browser caches them, a 304 revalidation merges the stored response's old
+// refresh header into the new one, handing the client an expired token.
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+
 app.use("/api/auth", authRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/notes", notesRouter);

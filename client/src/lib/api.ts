@@ -12,6 +12,9 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// Wrapped so tests can observe the reload (jsdom's location can't be stubbed).
+export const page = { reload: () => window.location.reload() };
+
 class ApiError extends Error {
   status: number;
 
@@ -38,9 +41,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     // An expired or revoked session: drop it and go back to the login page.
     // (/auth/* is excluded so a wrong password still shows its own error.)
-    if (res.status === 401 && token && !path.startsWith("/auth/")) {
+    // Only if the request used the token still stored: a stale in-flight
+    // request must not wipe out a newer login.
+    if (res.status === 401 && token && !path.startsWith("/auth/") && getToken() === token) {
       clearToken();
-      window.location.reload();
+      page.reload();
     }
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new ApiError(res.status, body.error ?? "Request failed");
