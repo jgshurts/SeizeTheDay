@@ -133,6 +133,8 @@ interface NotesColumnProps {
   // Bumped by MainPage when a note is changed from outside this column (a
   // note opened from a task's @REF link), to refetch the day's notes.
   refreshKey: number;
+  // Called after a note's "Extract tasks" adds tasks.
+  onTasksAdded: () => void;
   subBannerColor: string | null | undefined;
 }
 
@@ -142,6 +144,7 @@ export function NotesColumn({
   projectFilterKey,
   defaultProjectId,
   refreshKey,
+  onTasksAdded,
   subBannerColor,
 }: NotesColumnProps) {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -234,6 +237,7 @@ export function NotesColumn({
             }
             onUpdateNote={updateNote}
             onDeleteNote={deleteNote}
+            onTasksAdded={onTasksAdded}
             onClose={() => setOpenNote(null)}
           />
         );

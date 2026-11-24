@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { ListPlus, Pencil } from "lucide-react";
 import { Modal } from "./Modal";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { NoteMarkdown } from "./NoteMarkdown";
 import { NoteRefPill } from "./NoteRefPill";
+import { ExtractTasksDialog } from "./ExtractTasksDialog";
 import type { Note, Project } from "../types";
 
 const NONE = "";
@@ -21,6 +22,7 @@ export function NoteDialog({
   onEditExternally,
   onUpdateNote,
   onDeleteNote,
+  onTasksAdded,
   onClose,
 }: {
   note: Note;
@@ -35,11 +37,14 @@ export function NoteDialog({
   onEditExternally?: () => void;
   onUpdateNote: (id: string, patch: Record<string, unknown>) => Promise<void>;
   onDeleteNote: (id: string) => Promise<void>;
+  // Called after "Extract tasks" adds tasks, so the host can refetch its list.
+  onTasksAdded?: () => void;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(startEditing && !onEditExternally);
   const [draft, setDraft] = useState(note.noteText ?? "");
   const [confirmingClose, setConfirmingClose] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const isDirty = editing && draft !== (note.noteText ?? "");
 
   function saveDraft() {
@@ -114,6 +119,17 @@ export function NoteDialog({
               <Pencil size={14} /> Edit
             </button>
           )}
+          {isOwner && !editing && (
+            <button
+              type="button"
+              onClick={() => setExtracting(true)}
+              disabled={!note.projectId}
+              title={note.projectId ? undefined : "Link this note to a project first"}
+              className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <ListPlus size={14} /> Extract tasks
+            </button>
+          )}
           {isOwner && (
             <ConfirmDeleteButton
               label="Delete note"
@@ -148,6 +164,14 @@ export function NoteDialog({
             <span className="text-slate-400">Click to add note text...</span>
           )}
         </div>
+      )}
+
+      {extracting && (
+        <ExtractTasksDialog
+          note={note}
+          onDone={() => onTasksAdded?.()}
+          onClose={() => setExtracting(false)}
+        />
       )}
 
       {confirmingClose && (

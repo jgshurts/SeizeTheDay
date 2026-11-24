@@ -359,6 +359,7 @@ export function MainPage() {
       projectFilterKey={projectFilterKey}
       defaultProjectId={defaultProjectId}
       refreshKey={notesRefreshKey}
+      onTasksAdded={fetchTasks}
       subBannerColor={user?.themeSubBannerColor}
     />
   );
@@ -493,6 +494,7 @@ export function MainPage() {
             startEditing={false}
             onUpdateNote={updateRefNote}
             onDeleteNote={deleteRefNote}
+            onTasksAdded={fetchTasks}
             onClose={() => setRefNote(null)}
           />
         )}
