@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
+  Check,
   ClipboardList,
   Download,
   History,
@@ -211,8 +212,48 @@ export function TasksColumn({
   const [renumbering, setRenumbering] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  // Mobile: a row being dragged sideways to complete it (see swipe handlers).
+  const [swipe, setSwipe] = useState<{ id: string; dx: number } | null>(null);
+  const swipeStart = useRef<{ id: string; x: number; y: number; horizontal: boolean | null } | null>(null);
 
   const visibleTasks = tasks;
+
+  // One-step completion: the first "complete" status, or -- for a task that's
+  // already complete -- back to the default (else first incomplete) status.
+  async function toggleComplete(task: Task) {
+    const target = task.status?.isComplete
+      ? (statuses.find((s) => s.isDefault && !s.isComplete) ?? statuses.find((s) => !s.isComplete))
+      : statuses.find((s) => s.isComplete);
+    if (target) await onUpdateTask(task.id, { statusId: target.id });
+  }
+
+  const SWIPE_COMMIT_PX = 90;
+
+  function onRowTouchStart(e: React.TouchEvent, task: Task) {
+    if ((e.target as HTMLElement).closest("input, select, textarea, button, a")) return;
+    const t = e.touches[0];
+    swipeStart.current = { id: task.id, x: t.clientX, y: t.clientY, horizontal: null };
+  }
+
+  function onRowTouchMove(e: React.TouchEvent) {
+    const start = swipeStart.current;
+    if (!start) return;
+    const t = e.touches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (start.horizontal === null && Math.abs(dx) + Math.abs(dy) > 10) {
+      start.horizontal = Math.abs(dx) > Math.abs(dy) * 1.5;
+    }
+    if (start.horizontal) setSwipe({ id: start.id, dx: Math.max(0, dx) });
+  }
+
+  function onRowTouchEnd(task: Task) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    const committed = start?.horizontal && swipe?.id === task.id && swipe.dx >= SWIPE_COMMIT_PX;
+    setSwipe(null);
+    if (committed) toggleComplete(task);
+  }
 
   // Selection is scoped to whatever's currently on screen -- clear it when
   // the day changes so it can't silently apply to rows that are no longer
@@ -448,6 +489,7 @@ export function TasksColumn({
                   />
                 </th>
               )}
+              <th className="w-7 px-0 py-1 text-center" aria-label="Complete" />
               <th className="w-[35px] px-1 py-1 text-center">Sta</th>
               <th className="w-[34px] px-1 py-1 text-center">PG</th>
               <th className="w-[34px] px-1 py-1 text-center">PR</th>
@@ -461,6 +503,7 @@ export function TasksColumn({
             {adding && !isMobile && (
               <tr className="border-t border-slate-100">
                 {!isMobile && <td className="px-1 py-1" />}
+                <td className="px-0 py-1" />
                 <td className="px-1 py-1" />
                 <td className="px-1 py-1 text-center text-xs text-slate-400">
                   {priorityGroups.find((pg) => pg.id === newPriorityGroupId)?.prtyCode ?? "-"}
@@ -490,11 +533,24 @@ export function TasksColumn({
                 <tr
                   key={task.id}
                   className="border-t border-slate-100"
-                  style={
-                    task.project?.color
+                  onTouchStart={isMobile ? (e) => onRowTouchStart(e, task) : undefined}
+                  onTouchMove={isMobile ? onRowTouchMove : undefined}
+                  onTouchEnd={isMobile ? () => onRowTouchEnd(task) : undefined}
+                  onTouchCancel={isMobile ? () => { swipeStart.current = null; setSwipe(null); } : undefined}
+                  style={{
+                    ...(task.project?.color
                       ? { backgroundColor: withAlpha(task.project.color, "1a") }
-                      : undefined
-                  }
+                      : {}),
+                    // Swiping right slides the row and tints it green once
+                    // it's far enough to count.
+                    ...(swipe?.id === task.id
+                      ? {
+                          transform: `translateX(${swipe.dx}px)`,
+                          backgroundColor:
+                            swipe.dx >= SWIPE_COMMIT_PX ? "rgba(34,197,94,0.35)" : "rgba(34,197,94,0.12)",
+                        }
+                      : {}),
+                  }}
                 >
                   {!isMobile && (
                     <td className="px-1 py-1 text-center">
@@ -506,6 +562,21 @@ export function TasksColumn({
                       />
                     </td>
                   )}
+                  <td className="px-0 py-1 text-center">
+                    <button
+                      type="button"
+                      aria-label={task.status?.isComplete ? "Mark not complete" : "Mark complete"}
+                      title={task.status?.isComplete ? "Mark not complete" : "Mark complete"}
+                      onClick={() => toggleComplete(task)}
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
+                        task.status?.isComplete
+                          ? "border-green-600 bg-green-600 text-white"
+                          : "border-slate-300 text-transparent hover:border-green-600 hover:text-green-600"
+                      }`}
+                    >
+                      <Check size={14} strokeWidth={3} />
+                    </button>
+                  </td>
                   <td className="px-1 py-1">
                     <StatusSelect
                       statuses={statuses}
