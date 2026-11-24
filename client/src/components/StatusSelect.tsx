@@ -5,13 +5,18 @@ interface StatusSelectProps {
   statuses: Status[];
   value: string | null;
   onChange: (statusId: string) => void;
+  // Tap-to-advance instead of a dropdown: each tap moves to the next status
+  // in the Admin-defined order (statuses arrive sorted by ordinal), wrapping
+  // from the last back to the first. For touch screens, where a one-tap
+  // change beats opening a list.
+  cycle?: boolean;
 }
 
 // Native <select> can't reliably color individual <option> rows across
 // browsers (Safari in particular ignores option styling), so the Sta column
 // needs its own listbox to show each status's background/foreground color
 // both when closed and in the open dropdown.
-export function StatusSelect({ statuses, value, onChange }: StatusSelectProps) {
+export function StatusSelect({ statuses, value, onChange, cycle = false }: StatusSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = statuses.find((s) => s.id === value) ?? null;
@@ -27,6 +32,12 @@ export function StatusSelect({ statuses, value, onChange }: StatusSelectProps) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
+  function advance() {
+    if (statuses.length === 0) return;
+    const index = statuses.findIndex((s) => s.id === value);
+    onChange(statuses[(index + 1) % statuses.length].id);
+  }
+
   function select(id: string) {
     onChange(id);
     setOpen(false);
@@ -37,7 +48,7 @@ export function StatusSelect({ statuses, value, onChange }: StatusSelectProps) {
       <button
         type="button"
         title={selected?.description ?? undefined}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={cycle ? advance : () => setOpen((prev) => !prev)}
         style={{
           backgroundColor: selected?.backgroundColor ?? undefined,
           color: selected?.foregroundColor ?? undefined,
@@ -46,7 +57,7 @@ export function StatusSelect({ statuses, value, onChange }: StatusSelectProps) {
       >
         {selected?.statusCode ?? "-"}
       </button>
-      {open && (
+      {open && !cycle && (
         <div className="absolute left-0 top-full z-30 mt-1 w-20 overflow-hidden rounded border-2 border-slate-400 bg-white shadow-lg">
           {statuses.map((s) => (
             <button

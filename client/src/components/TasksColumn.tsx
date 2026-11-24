@@ -583,6 +583,7 @@ export function TasksColumn({
                     <StatusSelect
                       statuses={statuses}
                       value={task.statusId}
+                      cycle={isMobile}
                       onChange={(statusId) => onUpdateTask(task.id, { statusId })}
                     />
                   </td>
