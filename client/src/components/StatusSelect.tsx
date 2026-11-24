@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Status } from "../types";
 
+const LONG_PRESS_MS = 500;
+
 interface StatusSelectProps {
   statuses: Status[];
   value: string | null;
@@ -8,7 +10,8 @@ interface StatusSelectProps {
   // Tap-to-advance instead of a dropdown: each tap moves to the next status
   // in the Admin-defined order (statuses arrive sorted by ordinal), wrapping
   // from the last back to the first. For touch screens, where a one-tap
-  // change beats opening a list.
+  // change beats opening a list; a long press opens the full list for
+  // jumping straight to a status.
   cycle?: boolean;
 }
 
@@ -19,6 +22,8 @@ interface StatusSelectProps {
 export function StatusSelect({ statuses, value, onChange, cycle = false }: StatusSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
   const selected = statuses.find((s) => s.id === value) ?? null;
 
   useEffect(() => {
@@ -32,7 +37,25 @@ export function StatusSelect({ statuses, value, onChange, cycle = false }: Statu
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
+  function startLongPress() {
+    longPressFired.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      longPressFired.current = true;
+      setOpen(true);
+    }, LONG_PRESS_MS);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
   function advance() {
+    // The tap that ends a long press already opened the list.
+    if (longPressFired.current) {
+      longPressFired.current = false;
+      return;
+    }
     if (statuses.length === 0) return;
     const index = statuses.findIndex((s) => s.id === value);
     onChange(statuses[(index + 1) % statuses.length].id);
@@ -49,15 +72,25 @@ export function StatusSelect({ statuses, value, onChange, cycle = false }: Statu
         type="button"
         title={selected?.description ?? undefined}
         onClick={cycle ? advance : () => setOpen((prev) => !prev)}
+        {...(cycle
+          ? {
+              onTouchStart: startLongPress,
+              onTouchMove: cancelLongPress,
+              onTouchEnd: cancelLongPress,
+              onTouchCancel: cancelLongPress,
+              onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+            }
+          : {})}
         style={{
           backgroundColor: selected?.backgroundColor ?? undefined,
           color: selected?.foregroundColor ?? undefined,
+          ...(cycle ? { WebkitTouchCallout: "none", userSelect: "none" } : {}),
         }}
         className="w-full truncate rounded border border-slate-200 bg-white px-1 py-0.5 text-center text-xs"
       >
         {selected?.statusCode ?? "-"}
       </button>
-      {open && !cycle && (
+      {open && (
         <div className="absolute left-0 top-full z-30 mt-1 w-20 overflow-hidden rounded border-2 border-slate-400 bg-white shadow-lg">
           {statuses.map((s) => (
             <button
