@@ -489,7 +489,7 @@ export function TasksColumn({
                   />
                 </th>
               )}
-              <th className="w-7 px-0 py-1 text-center" aria-label="Complete" />
+              {!isMobile && <th className="w-7 px-0 py-1 text-center" aria-label="Complete" />}
               <th className="w-[35px] px-1 py-1 text-center">Sta</th>
               <th className="w-[34px] px-1 py-1 text-center">PG</th>
               <th className="w-[34px] px-1 py-1 text-center">PR</th>
@@ -503,7 +503,7 @@ export function TasksColumn({
             {adding && !isMobile && (
               <tr className="border-t border-slate-100">
                 {!isMobile && <td className="px-1 py-1" />}
-                <td className="px-0 py-1" />
+                {!isMobile && <td className="px-0 py-1" />}
                 <td className="px-1 py-1" />
                 <td className="px-1 py-1 text-center text-xs text-slate-400">
                   {priorityGroups.find((pg) => pg.id === newPriorityGroupId)?.prtyCode ?? "-"}
@@ -562,21 +562,23 @@ export function TasksColumn({
                       />
                     </td>
                   )}
-                  <td className="px-0 py-1 text-center">
-                    <button
-                      type="button"
-                      aria-label={task.status?.isComplete ? "Mark not complete" : "Mark complete"}
-                      title={task.status?.isComplete ? "Mark not complete" : "Mark complete"}
-                      onClick={() => toggleComplete(task)}
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
-                        task.status?.isComplete
-                          ? "border-green-600 bg-green-600 text-white"
-                          : "border-slate-300 text-transparent hover:border-green-600 hover:text-green-600"
-                      }`}
-                    >
-                      <Check size={14} strokeWidth={3} />
-                    </button>
-                  </td>
+                  {!isMobile && (
+                    <td className="px-0 py-1 text-center">
+                      <button
+                        type="button"
+                        aria-label={task.status?.isComplete ? "Mark not complete" : "Mark complete"}
+                        title={task.status?.isComplete ? "Mark not complete" : "Mark complete"}
+                        onClick={() => toggleComplete(task)}
+                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
+                          task.status?.isComplete
+                            ? "border-green-600 bg-green-600 text-white"
+                            : "border-slate-300 text-transparent hover:border-green-600 hover:text-green-600"
+                        }`}
+                      >
+                        <Check size={14} strokeWidth={3} />
+                      </button>
+                    </td>
+                  )}
                   <td className="px-1 py-1">
                     <StatusSelect
                       statuses={statuses}
