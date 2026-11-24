@@ -41,6 +41,8 @@ export function StatusSelect({ statuses, value, onChange, cycle = false }: Statu
     longPressFired.current = false;
     longPressTimer.current = window.setTimeout(() => {
       longPressFired.current = true;
+      // The browser's own long-press may already have selected text nearby.
+      window.getSelection()?.removeAllRanges();
       setOpen(true);
     }, LONG_PRESS_MS);
   }
@@ -67,7 +69,11 @@ export function StatusSelect({ statuses, value, onChange, cycle = false }: Statu
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div
+      ref={ref}
+      className="relative"
+      style={cycle ? { WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" } : undefined}
+    >
       <button
         type="button"
         title={selected?.description ?? undefined}
@@ -84,7 +90,7 @@ export function StatusSelect({ statuses, value, onChange, cycle = false }: Statu
         style={{
           backgroundColor: selected?.backgroundColor ?? undefined,
           color: selected?.foregroundColor ?? undefined,
-          ...(cycle ? { WebkitTouchCallout: "none", userSelect: "none" } : {}),
+          ...(cycle ? { WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" } : {}),
         }}
         className="w-full truncate rounded border border-slate-200 bg-white px-1 py-0.5 text-center text-xs"
       >

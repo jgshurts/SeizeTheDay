@@ -579,7 +579,11 @@ export function TasksColumn({
                       </button>
                     </td>
                   )}
-                  <td className="px-1 py-1">
+                  <td
+                    className="px-1 py-1"
+                    // Keep a long press on the status from selecting the cell.
+                    style={isMobile ? { WebkitUserSelect: "none", userSelect: "none" } : undefined}
+                  >
                     <StatusSelect
                       statuses={statuses}
                       value={task.statusId}
