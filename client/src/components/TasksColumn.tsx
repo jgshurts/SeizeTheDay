@@ -532,7 +532,7 @@ export function TasksColumn({
               return (
                 <tr
                   key={task.id}
-                  className="border-t border-slate-100"
+                  className={`border-t border-slate-100 ${isMobile ? "[&>td]:!py-2" : ""}`}
                   onTouchStart={isMobile ? (e) => onRowTouchStart(e, task) : undefined}
                   onTouchMove={isMobile ? onRowTouchMove : undefined}
                   onTouchEnd={isMobile ? () => onRowTouchEnd(task) : undefined}
